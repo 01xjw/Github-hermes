@@ -130,17 +130,62 @@ describe("internal pull request candidate API", () => {
       "candidate/17",
       "src/kernel file.py",
     );
+    await api.publishInternalPullRequestCandidate(
+      "candidate/17",
+      `sha256:${"a".repeat(64)}`,
+    );
 
     expect(fetchMock.mock.calls.map((call) => call[0])).toEqual([
       "/api/v2/project-hermes/pull-request-candidates?limit=25&offset=5",
       "/api/v2/project-hermes/pull-request-candidates/candidate%2F17",
       "/api/v2/project-hermes/pull-request-candidates/candidate%2F17/files/diff?path=src%2Fkernel%20file.py",
+      "/api/v2/project-hermes/pull-request-candidates/candidate%2F17/publish",
     ]);
     for (const call of fetchMock.mock.calls) {
       expect(call[1]).toEqual(
         expect.objectContaining({ credentials: "include" }),
       );
     }
+    expect(fetchMock.mock.calls.at(-1)?.[1]).toEqual(
+      expect.objectContaining({
+        body: JSON.stringify({
+          schema_version: "publish-internal-pr-request.v1",
+          confirmed_lock_digest: `sha256:${"a".repeat(64)}`,
+          confirm: true,
+        }),
+        method: "POST",
+      }),
+    );
+  });
+});
+
+describe("ProjectHermes GitHub status API", () => {
+  it("batches authenticated pull request identities", async () => {
+    vi.stubGlobal("window", {});
+    const fetchMock = jsonFetchMock({ statuses: [] });
+    vi.stubGlobal("fetch", fetchMock);
+    const references = [
+      { key: "spur-568", repository: "ROCm/spur", number: 568 },
+      {
+        key: "candidate-17",
+        repository: "acme/kernel",
+        head_ref: "project-hermes/issue-17",
+      },
+    ];
+
+    await api.getProjectPullRequestStatuses(references);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v2/project-hermes/github/pull-request-statuses",
+      expect.objectContaining({
+        body: JSON.stringify({
+          schema_version: "pull-request-status-request.v1",
+          references,
+        }),
+        credentials: "include",
+        method: "POST",
+      }),
+    );
   });
 });
 

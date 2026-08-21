@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Awaitable, Callable, Literal, TypeVar, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 
 from project_hermes.accounting import (
     AccountingStore,
@@ -112,6 +112,65 @@ class RescreenIssuePayload(StrictModel):
         return normalized
 
 
+class PublishInternalPullRequestPayload(StrictModel):
+    """Explicit operator confirmation for one immutable publication."""
+
+    schema_version: Literal["publish-internal-pr-request.v1"] = (
+        "publish-internal-pr-request.v1"
+    )
+    confirmed_lock_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    confirm: Literal[True]
+
+
+class PullRequestStatusReference(StrictModel):
+    """One stable dashboard key mapped to a GitHub PR number or branch."""
+
+    key: str = Field(min_length=1, max_length=200)
+    repository: str = Field(
+        pattern=r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+    )
+    number: int | None = Field(default=None, ge=1)
+    head_ref: str | None = Field(default=None, min_length=1, max_length=255)
+
+    @model_validator(mode="after")
+    def exactly_one_identity(self) -> "PullRequestStatusReference":
+        if (self.number is None) == (self.head_ref is None):
+            raise ValueError("provide exactly one of number or head_ref")
+        if self.head_ref is not None and (
+            self.head_ref.startswith(("-", ".", "/"))
+            or self.head_ref.endswith((".", "/"))
+            or ".." in self.head_ref
+            or "@{" in self.head_ref
+            or any(
+                character.isspace() or character in "~^:?*[\\"
+                for character in self.head_ref
+            )
+        ):
+            raise ValueError("head_ref is not a safe Git branch name")
+        return self
+
+
+class PullRequestStatusPayload(StrictModel):
+    schema_version: Literal["pull-request-status-request.v1"] = (
+        "pull-request-status-request.v1"
+    )
+    references: list[PullRequestStatusReference] = Field(
+        min_length=1,
+        max_length=100,
+    )
+
+    @field_validator("references")
+    @classmethod
+    def unique_reference_keys(
+        cls,
+        values: list[PullRequestStatusReference],
+    ) -> list[PullRequestStatusReference]:
+        keys = [value.key for value in values]
+        if len(keys) != len(set(keys)):
+            raise ValueError("pull request status keys must be unique")
+        return values
+
+
 PrincipalDependency = Callable[
     [Request],
     ApiPrincipal | Awaitable[ApiPrincipal],
@@ -126,6 +185,8 @@ SupervisorStatusProvider = Callable[[], Any]
 IssueSelector = Callable[[str, str], WorkItem]
 IssueRescreener = Callable[[str, str, str, list[str]], Any]
 WorkItemRetrier = Callable[[str, str, str], WorkItem]
+CandidatePublisher = Callable[[InternalPullRequestCandidate, str], Any]
+PullRequestStatusResolver = Callable[[list[dict[str, Any]]], Any]
 ScreeningDecisionQuery = Literal["SELECT", "DEFER", "REJECT", "PENDING"]
 
 
@@ -144,6 +205,8 @@ def build_project_hermes_router(
     issue_selector: IssueSelector | None = None,
     issue_rescreener: IssueRescreener | None = None,
     work_item_retrier: WorkItemRetrier | None = None,
+    candidate_publisher: CandidatePublisher | None = None,
+    pull_request_status_resolver: PullRequestStatusResolver | None = None,
     operator_selection_required: bool = False,
     screening_selection_required: bool = False,
 ) -> APIRouter:
@@ -180,6 +243,29 @@ def build_project_hermes_router(
             screening_selection_required
         )
         return payload
+
+    @router.post("/github/pull-request-statuses")
+    async def get_pull_request_statuses(
+        payload: PullRequestStatusPayload,
+        actor: ApiPrincipal = Depends(principal),
+    ) -> dict[str, Any]:
+        del actor
+        if pull_request_status_resolver is None:
+            raise HTTPException(
+                status_code=503,
+                detail="GitHub pull request status is not configured",
+            )
+        try:
+            statuses = await asyncio.to_thread(
+                pull_request_status_resolver,
+                [reference.model_dump() for reference in payload.references],
+            )
+        except (RuntimeError, ValueError) as exc:
+            raise HTTPException(
+                status_code=502,
+                detail=redact_text(str(exc)),
+            ) from exc
+        return {"statuses": _serialize(statuses)}
 
     @router.post("/polling/run", status_code=201)
     async def run_polling_now(
@@ -698,6 +784,60 @@ def build_project_hermes_router(
             "file": file.model_dump(mode="json", exclude={"diff"}),
             "diff": file.diff,
         }
+
+    @router.post(
+        "/pull-request-candidates/{candidate_id}/publish",
+        status_code=201,
+    )
+    async def publish_pull_request_candidate(
+        candidate_id: str,
+        payload: PublishInternalPullRequestPayload,
+        actor: ApiPrincipal = Depends(principal),
+    ) -> dict[str, Any]:
+        if actor.role not in {
+            ProjectRole.CONTROL_PLANE,
+            ProjectRole.OPERATOR,
+        }:
+            raise HTTPException(
+                status_code=403,
+                detail="principal cannot publish pull requests",
+            )
+        if candidate_publisher is None:
+            raise HTTPException(
+                status_code=503,
+                detail="ProjectHermes Draft PR publication is not configured",
+            )
+        candidate_store = _require_candidate_store(candidates)
+        try:
+            candidate = candidate_store.get(candidate_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        if (
+            candidate.lock_state
+            is not InternalCandidateLockState.IMMUTABLE_APPROVED
+            or candidate.lock_digest is None
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail="candidate must be approved and immutable before publication",
+            )
+        if payload.confirmed_lock_digest != candidate.lock_digest:
+            raise HTTPException(
+                status_code=409,
+                detail="candidate approval changed; review the locked candidate again",
+            )
+        try:
+            result = await asyncio.to_thread(
+                candidate_publisher,
+                candidate,
+                actor.subject,
+            )
+        except (PermissionError, RuntimeError, ValueError) as exc:
+            raise HTTPException(
+                status_code=409,
+                detail=redact_text(str(exc)),
+            ) from exc
+        return _serialize(result)
 
     @router.post("/runs/{run_id}/actions")
     async def submit_action(

@@ -19,6 +19,7 @@ import { usePageHeader } from "@/contexts/usePageHeader";
 import { api } from "@/lib/api";
 import type {
   PollingOverviewResponse,
+  ProjectIssueFeedItem,
   ProjectWorkItem,
   ProjectWorkListResponse,
 } from "@/lib/api";
@@ -31,8 +32,35 @@ import {
   WorkStatusBadge,
 } from "@/components/ProjectHermesUi";
 import { CompletedSolutionsTable } from "@/components/CompletedSolutions";
+import { DailyThroughputChart } from "@/components/DailyThroughputChart";
+import {
+  buildDailyThroughput,
+  type DailyThroughputPoint,
+} from "@/lib/project-throughput";
 
 const REFRESH_INTERVAL_MS = 10_000;
+const THROUGHPUT_REFRESH_INTERVAL_MS = 5 * 60_000;
+const THROUGHPUT_PAGE_SIZE = 500;
+
+async function loadThroughputIssues(repositoryId: number | null) {
+  const issues: ProjectIssueFeedItem[] = [];
+  let offset = 0;
+  let total = Number.POSITIVE_INFINITY;
+
+  while (offset < total) {
+    const page = await api.listProjectIssues({
+      repositoryId: repositoryId ?? undefined,
+      limit: THROUGHPUT_PAGE_SIZE,
+      offset,
+    });
+    issues.push(...page.issues);
+    total = page.total;
+    if (!page.issues.length) break;
+    offset += page.issues.length;
+  }
+
+  return issues;
+}
 
 function RepositoryDistribution({
   overview,
@@ -171,6 +199,12 @@ export default function ProjectOverviewPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [runningPoll, setRunningPoll] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [throughput, setThroughput] = useState<{
+    repositoryId: number | null;
+    data: DailyThroughputPoint[];
+  } | null>(null);
+  const [throughputLoading, setThroughputLoading] = useState(true);
+  const [throughputError, setThroughputError] = useState<string | null>(null);
 
   const refresh = useCallback(async (background = false) => {
     if (background) setRefreshing(true);
@@ -195,10 +229,56 @@ export default function ProjectOverviewPage() {
   }, [repositoryId]);
 
   useEffect(() => {
-    void refresh();
+    queueMicrotask(() => void refresh());
     const timer = window.setInterval(() => void refresh(true), REFRESH_INTERVAL_MS);
     return () => window.clearInterval(timer);
   }, [refresh]);
+
+  useEffect(() => {
+    let active = true;
+    let requestInFlight = false;
+
+    const refreshThroughput = async () => {
+      if (requestInFlight) return;
+      requestInFlight = true;
+      setThroughputLoading(true);
+      try {
+        const issues = await loadThroughputIssues(repositoryId);
+        if (!active) return;
+        setThroughput({
+          repositoryId,
+          data: buildDailyThroughput(issues),
+        });
+        setThroughputError(null);
+      } catch (reason) {
+        if (active) {
+          setThroughputError(
+            reason instanceof Error ? reason.message : String(reason),
+          );
+        }
+      } finally {
+        requestInFlight = false;
+        if (active) setThroughputLoading(false);
+      }
+    };
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") void refreshThroughput();
+    };
+
+    void refreshThroughput();
+    const timer = window.setInterval(
+      refreshWhenVisible,
+      THROUGHPUT_REFRESH_INTERVAL_MS,
+    );
+    window.addEventListener("focus", refreshWhenVisible);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refreshWhenVisible);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
+  }, [repositoryId]);
 
   const runNow = useCallback(async () => {
     setRunningPoll(true);
@@ -342,6 +422,12 @@ export default function ProjectOverviewPage() {
           tone="slate"
         />
       </section>
+
+      <DailyThroughputChart
+        data={throughput?.repositoryId === repositoryId ? throughput.data : null}
+        loading={throughputLoading}
+        error={throughputError}
+      />
 
       {overview ? (
         <section className="grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(19rem,0.75fr)]">

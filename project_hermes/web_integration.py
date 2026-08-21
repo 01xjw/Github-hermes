@@ -25,6 +25,7 @@ from project_hermes.assurance_store import (
     open_assurance_store,
 )
 from project_hermes.candidate_ingest import CandidateIngestor
+from project_hermes.candidate_publication import publish_internal_pull_request
 from project_hermes.candidate_review import InternalCandidateReviewService
 from project_hermes.config import (
     ControlPlaneMode,
@@ -41,6 +42,7 @@ from project_hermes.handlers import (
     execution_action_handler,
     review_request_handler,
 )
+from project_hermes.github_status import resolve_pull_request_statuses
 from project_hermes.issue_launcher import IssueLauncher
 from project_hermes.issue_screening import IssueScreeningService
 from project_hermes.kubernetes_jobs import (
@@ -59,6 +61,7 @@ from project_hermes.polling_store import (
 from project_hermes.polling_supervisor import PollingSupervisor
 from project_hermes.project_manager import MainHermesProjectManager
 from project_hermes.publication import (
+    InternalPullRequestCandidate,
     InternalPullRequestCandidateStore,
     open_internal_pull_request_candidate_store,
 )
@@ -202,6 +205,8 @@ def mount_project_hermes(
     supervisor: PollingSupervisor | None = None
     repository_resolver: GitHubRepositoryResolver | None = None
     github_client: GitHubClient | None = None
+    github_status_client: GitHubClient | None = None
+    github_status_fallback_client: GitHubClient | None = None
     if test_mode:
         execution = _build_test_execution(config, accounting)
     else:
@@ -226,6 +231,22 @@ def mount_project_hermes(
                 ),
             )
         )
+        if (
+            wiring_overrides is not None
+            and wiring_overrides.github_client is not None
+        ):
+            github_status_client = github_client
+        else:
+            request_timeout = config.polling.github_request_timeout_seconds
+            github_status_client = GitHubClient(
+                max_retries=0,
+                timeout_seconds=request_timeout,
+            )
+            github_status_fallback_client = GitHubClient(
+                token="",
+                max_retries=0,
+                timeout_seconds=request_timeout,
+            )
         repository_resolver = GitHubRepositoryResolver(
             github_client,
             repositories=tuple(
@@ -368,6 +389,27 @@ def mount_project_hermes(
         task = runs.get_task(run_id)
         return _action_context(task, config=config, workspaces=workspaces)
 
+    def publish_candidate(
+        candidate: InternalPullRequestCandidate,
+        requested_by: str,
+    ) -> dict[str, Any]:
+        del requested_by
+        matching = [
+            lease
+            for lease in workspaces.active_for_task(candidate.task_id)
+            if lease.repository.casefold() == candidate.repository.casefold()
+            and lease.base_sha == candidate.base_sha
+        ]
+        if len(matching) != 1:
+            raise RuntimeError(
+                "candidate publication requires exactly one active, matching "
+                "controller workspace"
+            )
+        return publish_internal_pull_request(
+            candidate,
+            mirror_path=matching[0].mirror_path,
+        )
+
     app.include_router(
         build_project_hermes_router(
             controller,
@@ -424,6 +466,18 @@ def mount_project_hermes(
                         config.polling.max_review_execution_attempts
                     ),
                 )
+            ),
+            candidate_publisher=publish_candidate,
+            pull_request_status_resolver=(
+                (
+                    lambda references: resolve_pull_request_statuses(
+                        github_status_client,
+                        references,
+                        fallback_client=github_status_fallback_client,
+                    )
+                )
+                if github_status_client is not None
+                else None
             ),
             operator_selection_required=(
                 config.polling.require_operator_selection

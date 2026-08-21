@@ -10,7 +10,9 @@ import ChangesPage from "./ChangesPage";
 const apiMocks = vi.hoisted(() => ({
   getInternalPullRequestCandidate: vi.fn(),
   getInternalPullRequestCandidateFileDiff: vi.fn(),
+  getProjectPullRequestStatuses: vi.fn(),
   listInternalPullRequestCandidates: vi.fn(),
+  publishInternalPullRequestCandidate: vi.fn(),
 }));
 
 vi.mock("@/lib/api", () => ({ api: apiMocks }));
@@ -86,6 +88,8 @@ beforeEach(() => {
   apiMocks.listInternalPullRequestCandidates.mockReset();
   apiMocks.getInternalPullRequestCandidate.mockReset();
   apiMocks.getInternalPullRequestCandidateFileDiff.mockReset();
+  apiMocks.getProjectPullRequestStatuses.mockReset();
+  apiMocks.publishInternalPullRequestCandidate.mockReset();
   apiMocks.listInternalPullRequestCandidates.mockResolvedValue({
     candidates: [],
     total: 0,
@@ -93,11 +97,14 @@ beforeEach(() => {
     offset: 0,
   });
   apiMocks.getInternalPullRequestCandidate.mockResolvedValue(candidate);
+  apiMocks.getProjectPullRequestStatuses.mockResolvedValue({ statuses: [] });
 });
 
 afterEach(async () => {
   await act(async () => root.unmount());
   container.remove();
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 describe("ChangesPage internal candidates", () => {
@@ -125,6 +132,8 @@ describe("ChangesPage internal candidates", () => {
     expect(container.textContent).toContain("reference PR withheld");
     expect(container.textContent).not.toContain("SECRET REFERENCE SUMMARY");
     expect(container.textContent).not.toContain("SECRET DEFECT");
+    expect(container.querySelector("[data-issue-resolved]")).toBeNull();
+    expect(container.textContent).not.toContain("Create Draft PR");
     for (const label of [
       "Conversation",
       "Commits",
@@ -136,5 +145,97 @@ describe("ChangesPage internal candidates", () => {
     ]) {
       expect(container.textContent).toContain(label);
     }
+  });
+
+  it("marks an Issue resolved only after its GitHub PR is merged", async () => {
+    const locked = {
+      ...candidate,
+      lock_state: "immutable_approved" as const,
+      lock_digest: `sha256:${"c".repeat(64)}`,
+      locked_by: "operator",
+      locked_at: "2026-08-13T09:00:00Z",
+    };
+    apiMocks.getInternalPullRequestCandidate.mockResolvedValue(locked);
+    apiMocks.getProjectPullRequestStatuses.mockResolvedValue({
+      statuses: [
+        {
+          key: locked.candidate_id,
+          number: 17,
+          url: "https://github.com/acme/kernel/pull/17",
+          state: "merged",
+          checked_at: "2026-08-13T10:00:00Z",
+        },
+      ],
+    });
+
+    await act(async () => {
+      root.render(
+        <MemoryRouter initialEntries={["/changes?candidate=candidate-17"]}>
+          <ChangesPage />
+        </MemoryRouter>,
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(container.querySelector("[data-issue-resolved]")?.textContent).toContain(
+      "Issue resolved",
+    );
+    expect(container.querySelector('[data-pull-request-state="merged"]')).not.toBeNull();
+    expect(
+      container.querySelector<HTMLAnchorElement>("a[href$='/pull/17']"),
+    ).not.toBeNull();
+  });
+
+  it("publishes an approved candidate only after operator confirmation", async () => {
+    const lockDigest = `sha256:${"d".repeat(64)}`;
+    const locked = {
+      ...candidate,
+      lock_state: "immutable_approved" as const,
+      lock_digest: lockDigest,
+      locked_by: "operator",
+      locked_at: "2026-08-13T09:00:00Z",
+    };
+    apiMocks.getInternalPullRequestCandidate.mockResolvedValue(locked);
+    apiMocks.publishInternalPullRequestCandidate.mockResolvedValue({
+      url: "https://github.com/acme/kernel/pull/18",
+      number: 18,
+      title: locked.title,
+      state: "draft",
+      draft: true,
+      head_ref: locked.head_ref,
+      base_ref: locked.base_ref,
+    });
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    await act(async () => {
+      root.render(
+        <MemoryRouter initialEntries={["/changes?candidate=candidate-17"]}>
+          <ChangesPage />
+        </MemoryRouter>,
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    const publish = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("Push & create Draft PR"),
+    );
+    expect(publish).toBeDefined();
+
+    await act(async () => {
+      publish?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(apiMocks.publishInternalPullRequestCandidate).toHaveBeenCalledWith(
+      locked.candidate_id,
+      lockDigest,
+    );
+    expect(
+      container.querySelector<HTMLAnchorElement>("a[href$='/pull/18']"),
+    ).not.toBeNull();
+    expect(container.querySelector("[data-issue-resolved]")).toBeNull();
   });
 });

@@ -1,6 +1,8 @@
 import {
+  useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -9,9 +11,11 @@ import {
   ArrowLeft,
   CheckCircle2,
   CircleDot,
+  ExternalLink,
   FileCode2,
   GitCommitHorizontal,
   GitCompare,
+  GitPullRequest,
   LockKeyhole,
   RefreshCw,
   ShieldCheck,
@@ -27,12 +31,25 @@ import type {
   InternalPullRequestCandidateFile,
   InternalPullRequestCandidateSummary,
   InternalPullRequestCheck,
+  InternalPullRequestPublication,
+  ProjectPullRequestStatus,
 } from "@/lib/api";
 import {
   parseUnifiedDiff,
   unifiedLineKind,
   type DiffCell,
 } from "@/lib/unified-diff";
+
+const REFRESH_INTERVAL_MS = 5_000;
+const GITHUB_REFRESH_INTERVAL_MS = 5 * 60_000;
+
+interface CandidatePullRequestState {
+  state: Exclude<ProjectPullRequestStatus["state"], "unknown">;
+  checkedAt: string;
+  number: number | null;
+  url: string | null;
+  stale: boolean;
+}
 
 type TabId =
   | "conversation"
@@ -78,6 +95,193 @@ function lockLabel(candidate: {
       immutable_approved: "Approved and locked",
     }[candidate.lock_state]
   );
+}
+
+function IssueResolvedBadge() {
+  return (
+    <span
+      data-issue-resolved="true"
+      className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.04em] text-emerald-700"
+    >
+      <CheckCircle2 className="h-3 w-3" />
+      Issue resolved
+    </span>
+  );
+}
+
+function PullRequestStateBadge({
+  pullRequest,
+}: {
+  pullRequest: CandidatePullRequestState;
+}) {
+  return (
+    <span
+      data-pull-request-state={pullRequest.state}
+      title={
+        pullRequest.stale
+          ? "Showing the last known GitHub state."
+          : `Live GitHub state checked ${new Date(pullRequest.checkedAt).toLocaleString()}`
+      }
+      className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.04em] text-blue-700"
+    >
+      <GitPullRequest className="h-3 w-3" />
+      {pullRequest.number ? `PR #${pullRequest.number}` : "PR"} {pullRequest.state}
+    </span>
+  );
+}
+
+function CandidatePullRequestBadges({
+  pullRequest,
+}: {
+  pullRequest: CandidatePullRequestState | undefined;
+}) {
+  if (!pullRequest) return null;
+  return (
+    <>
+      {pullRequest.state === "merged" ? <IssueResolvedBadge /> : null}
+      <PullRequestStateBadge pullRequest={pullRequest} />
+    </>
+  );
+}
+
+function useCandidatePullRequestStates(
+  candidates: readonly InternalPullRequestCandidateSummary[],
+  selectedCandidate: InternalPullRequestCandidate | null,
+) {
+  const uniqueCandidates = new Map(
+    [
+      ...candidates,
+      ...(selectedCandidate ? [selectedCandidate] : []),
+    ].map((candidate) => [candidate.candidate_id, candidate]),
+  );
+  const targetKey = JSON.stringify(
+    [...uniqueCandidates.values()]
+      .filter((candidate) => candidate.lock_state === "immutable_approved")
+      .map((candidate) => ({
+        candidateId: candidate.candidate_id,
+        repository: candidate.repository,
+        headRef: candidate.head_ref,
+      })),
+  );
+  const targets = useMemo(
+    () =>
+      JSON.parse(targetKey) as Array<{
+        candidateId: string;
+        repository: string;
+        headRef: string;
+      }>,
+    [targetKey],
+  );
+  const [states, setStates] = useState<
+    Record<string, CandidatePullRequestState | undefined>
+  >({});
+  const inFlight = useRef<string | null>(null);
+  const mounted = useRef(true);
+  const requestGeneration = useRef(0);
+
+  const refresh = useCallback(async () => {
+    if (inFlight.current === targetKey || !targets.length) return;
+    const requestKey = targetKey;
+    const generation = requestGeneration.current;
+    inFlight.current = requestKey;
+    try {
+      const response = await api.getProjectPullRequestStatuses(
+        targets.map((target) => ({
+          key: target.candidateId,
+          repository: target.repository,
+          head_ref: target.headRef,
+        })),
+      );
+      if (!mounted.current || requestGeneration.current !== generation) return;
+      const results = new Map(
+        response.statuses.map((status) => [status.key, status]),
+      );
+      setStates((current) => {
+        const next = { ...current };
+        targets.forEach((target) => {
+          const result: ProjectPullRequestStatus | undefined = results.get(
+            target.candidateId,
+          );
+          if (result && result.state !== "unknown") {
+            next[target.candidateId] = {
+              state: result.state,
+              checkedAt: result.checked_at,
+              number: result.number,
+              url: result.url,
+              stale: false,
+            };
+          } else {
+            const previous = next[target.candidateId];
+            if (!previous) return;
+            next[target.candidateId] = {
+              ...previous,
+              stale: true,
+            };
+          }
+        });
+        return next;
+      });
+    } catch {
+      if (mounted.current && requestGeneration.current === generation) {
+        setStates((current) => {
+          const next = { ...current };
+          targets.forEach((target) => {
+            const previous = next[target.candidateId];
+            if (!previous) return;
+            next[target.candidateId] = {
+              ...previous,
+              stale: true,
+            };
+          });
+          return next;
+        });
+      }
+    } finally {
+      if (inFlight.current === requestKey) inFlight.current = null;
+    }
+  }, [targetKey, targets]);
+
+  useEffect(() => {
+    mounted.current = true;
+    requestGeneration.current += 1;
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") void refresh();
+    };
+    queueMicrotask(() => {
+      if (mounted.current) void refresh();
+    });
+    const timer = window.setInterval(
+      refreshWhenVisible,
+      GITHUB_REFRESH_INTERVAL_MS,
+    );
+    window.addEventListener("focus", refreshWhenVisible);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refreshWhenVisible);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+      mounted.current = false;
+      requestGeneration.current += 1;
+    };
+  }, [refresh]);
+
+  const recordPublication = useCallback(
+    (candidateId: string, publication: InternalPullRequestPublication) => {
+      setStates((current) => ({
+        ...current,
+        [candidateId]: {
+          state: publication.state,
+          checkedAt: new Date().toISOString(),
+          number: publication.number,
+          url: publication.url,
+          stale: false,
+        },
+      }));
+    },
+    [],
+  );
+
+  return { states, recordPublication };
 }
 
 function formatDate(value: string): string {
@@ -291,10 +495,12 @@ function UnifiedDiff({ diff }: { diff: string }) {
 function CandidateList({
   candidates,
   loading,
+  pullRequests,
   onSelect,
 }: {
   candidates: InternalPullRequestCandidateSummary[];
   loading: boolean;
+  pullRequests: Readonly<Record<string, CandidatePullRequestState | undefined>>;
   onSelect: (candidateId: string) => void;
 }) {
   if (loading && !candidates.length) {
@@ -349,14 +555,19 @@ function CandidateList({
                   {candidate.approvals}/{candidate.review_count} approvals
                 </span>
               </span>
-              <span
-                className={`self-start justify-self-start rounded-full border px-2 py-0.5 text-[11px] font-semibold ${
-                  candidate.lock_state === "immutable_approved"
-                    ? "border-[#16a34a] text-[#16a34a]"
-                    : "border-amber-500 text-amber-700"
-                }`}
-              >
-                {lockLabel(candidate)}
+              <span className="flex flex-wrap items-center gap-1.5 self-start justify-self-start">
+                <span
+                  className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${
+                    candidate.lock_state === "immutable_approved"
+                      ? "border-[#16a34a] text-[#16a34a]"
+                      : "border-amber-500 text-amber-700"
+                  }`}
+                >
+                  {lockLabel(candidate)}
+                </span>
+                <CandidatePullRequestBadges
+                  pullRequest={pullRequests[candidate.candidate_id]}
+                />
               </span>
             </button>
           </li>
@@ -387,72 +598,148 @@ export default function ChangesPage() {
   const [diff, setDiff] = useState("");
   const [diffView, setDiffView] = useState<"split" | "unified">("split");
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [diffLoading, setDiffLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [refreshToken, setRefreshToken] = useState(0);
+  const [publishing, setPublishing] = useState(false);
+  const [publishError, setPublishError] = useState<string | null>(null);
+  const refreshGeneration = useRef(0);
+  const { states: pullRequests, recordPublication } =
+    useCandidatePullRequestStates(candidates, candidate);
 
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
+  const refresh = useCallback(async (background = false) => {
+    const generation = refreshGeneration.current + 1;
+    refreshGeneration.current = generation;
+    if (background) setRefreshing(true);
+    else setLoading(true);
     setError(null);
     const detailRequest = candidateId
       ? api.getInternalPullRequestCandidate(candidateId)
       : Promise.resolve(null);
-    Promise.all([
-      api.listInternalPullRequestCandidates(),
-      detailRequest,
-    ])
-      .then(([list, detail]) => {
-        if (cancelled) return;
-        setCandidates(list.candidates);
-        setCandidate(detail);
-        setActiveTab("conversation");
-        setSelectedPath(detail?.files[0]?.path ?? null);
-        setDiff("");
-      })
-      .catch((reason) => {
-        if (!cancelled) {
-          setCandidate(null);
-          setError(reason instanceof Error ? reason.message : String(reason));
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
+    try {
+      const [list, detail] = await Promise.all([
+        api.listInternalPullRequestCandidates(),
+        detailRequest,
+      ]);
+      if (generation !== refreshGeneration.current) return;
+      setCandidates(list.candidates);
+      setCandidate(detail);
+      setSelectedPath((current) => {
+        if (!detail) return null;
+        return current && detail.files.some((file) => file.path === current)
+          ? current
+          : detail.files[0]?.path ?? null;
       });
+    } catch (reason) {
+      if (generation !== refreshGeneration.current) return;
+      setError(reason instanceof Error ? reason.message : String(reason));
+      if (!background) setCandidate(null);
+    } finally {
+      if (generation === refreshGeneration.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    }
+  }, [candidateId]);
+
+  useEffect(() => {
+    let active = true;
+    queueMicrotask(() => {
+      if (!active) return;
+      setActiveTab("conversation");
+      setSelectedPath(null);
+      setDiff("");
+      setPublishError(null);
+      setCandidate((current) =>
+        current?.candidate_id === candidateId ? current : null,
+      );
+      void refresh();
+    });
     return () => {
-      cancelled = true;
+      active = false;
+      refreshGeneration.current += 1;
     };
-  }, [candidateId, refreshToken]);
+  }, [candidateId, refresh]);
+
+  useEffect(() => {
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") {
+        void refresh(true);
+      }
+    };
+    const timer = window.setInterval(refreshWhenVisible, REFRESH_INTERVAL_MS);
+    window.addEventListener("focus", refreshWhenVisible);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refreshWhenVisible);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
+  }, [refresh]);
 
   const selectedFile = useMemo(
     () => candidate?.files.find((file) => file.path === selectedPath) ?? null,
     [candidate, selectedPath],
   );
+  const pullRequest = candidate ? pullRequests[candidate.candidate_id] : undefined;
 
-  useEffect(() => {
-    if (activeTab !== "files" || !candidate || !selectedFile) {
-      setDiff("");
+  const publishCandidate = useCallback(async () => {
+    if (
+      !candidate ||
+      candidate.lock_state !== "immutable_approved" ||
+      !candidate.lock_digest ||
+      publishing
+    ) {
       return;
     }
-    let cancelled = false;
-    setDiffLoading(true);
-    api
-      .getInternalPullRequestCandidateFileDiff(
+    const confirmed = window.confirm(
+      `Push ${candidate.head_ref} and create a Draft PR in ${candidate.repository}?`,
+    );
+    if (!confirmed) return;
+
+    setPublishing(true);
+    setPublishError(null);
+    try {
+      const publication = await api.publishInternalPullRequestCandidate(
         candidate.candidate_id,
-        selectedFile.path,
-      )
-      .then((result) => {
-        if (!cancelled) setDiff(result.diff);
-      })
-      .catch((reason) => {
-        if (!cancelled) {
-          setDiff("");
-          setError(reason instanceof Error ? reason.message : String(reason));
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setDiffLoading(false);
-      });
+        candidate.lock_digest,
+      );
+      recordPublication(candidate.candidate_id, publication);
+      await refresh(true);
+    } catch (reason) {
+      setPublishError(reason instanceof Error ? reason.message : String(reason));
+    } finally {
+      setPublishing(false);
+    }
+  }, [candidate, publishing, recordPublication, refresh]);
+
+  useEffect(() => {
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      if (activeTab !== "files" || !candidate || !selectedFile) {
+        setDiff("");
+        return;
+      }
+      setDiffLoading(true);
+      api
+        .getInternalPullRequestCandidateFileDiff(
+          candidate.candidate_id,
+          selectedFile.path,
+        )
+        .then((result) => {
+          if (!cancelled) setDiff(result.diff);
+        })
+        .catch((reason) => {
+          if (!cancelled) {
+            setDiff("");
+            setError(reason instanceof Error ? reason.message : String(reason));
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setDiffLoading(false);
+        });
+    });
     return () => {
       cancelled = true;
     };
@@ -464,15 +751,15 @@ export default function ChangesPage() {
         ghost
         size="icon"
         type="button"
-        onClick={() => setRefreshToken((value) => value + 1)}
-        disabled={loading}
+        onClick={() => void refresh(true)}
+        disabled={loading || refreshing}
         aria-label="Refresh pull request candidates"
       >
-        {loading ? <Spinner /> : <RefreshCw />}
+        {loading || refreshing ? <Spinner /> : <RefreshCw />}
       </Button>,
     );
     return () => setEnd(null);
-  }, [loading, setEnd]);
+  }, [loading, refresh, refreshing, setEnd]);
 
   if (!candidateId) {
     return (
@@ -485,7 +772,13 @@ export default function ChangesPage() {
         <CandidateList
           candidates={candidates}
           loading={loading}
-          onSelect={(id) => setSearchParams({ candidate: id })}
+          pullRequests={pullRequests}
+          onSelect={(id) => {
+            setActiveTab("conversation");
+            setSelectedPath(null);
+            setDiff("");
+            setSearchParams({ candidate: id });
+          }}
         />
       </div>
     );
@@ -536,23 +829,57 @@ export default function ChangesPage() {
 
       <section className="rounded-lg border border-[#e2e8f0] bg-white shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
         <header className="px-5 py-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-xl font-semibold text-[#1e293b]">{candidate.title}</h2>
-            <span
-              className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${
-                candidate.lock_state === "immutable_approved"
-                  ? "border-[#16a34a] text-[#16a34a]"
-                  : "border-amber-500 text-amber-700"
-              }`}
-            >
-              {lockLabel(candidate)}
-            </span>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-xl font-semibold text-[#1e293b]">{candidate.title}</h2>
+                <span
+                  className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${
+                    candidate.lock_state === "immutable_approved"
+                      ? "border-[#16a34a] text-[#16a34a]"
+                      : "border-amber-500 text-amber-700"
+                  }`}
+                >
+                  {lockLabel(candidate)}
+                </span>
+                {pullRequest?.state === "merged" ? (
+                  <IssueResolvedBadge />
+                ) : null}
+                {pullRequest ? (
+                  <PullRequestStateBadge pullRequest={pullRequest} />
+                ) : null}
+              </div>
+              <p className="mt-2 text-xs text-[#64748b]">
+                <span className="font-semibold">{candidate.repository}</span> ·{" "}
+                <span className="font-mono">{candidate.head_ref}</span> into{" "}
+                <span className="font-mono">{candidate.base_ref}</span>
+              </p>
+            </div>
+            {pullRequest?.url ? (
+              <a
+                href={pullRequest.url}
+                target="_blank"
+                rel="noreferrer"
+                title="Open the current pull request on GitHub"
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-[#3b82f6] bg-[#eff6ff] px-3 py-2 text-xs font-semibold text-[#2563eb] transition hover:bg-[#dbeafe]"
+              >
+                <GitPullRequest className="h-4 w-4" />
+                View PR{pullRequest.number ? ` #${pullRequest.number}` : ""}
+                <ExternalLink className="h-3.5 w-3.5" />
+              </a>
+            ) : candidate.lock_state === "immutable_approved" ? (
+              <button
+                type="button"
+                onClick={() => void publishCandidate()}
+                disabled={publishing}
+                title="Push the immutable candidate branch and create a Draft PR on GitHub"
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-[#3b82f6] bg-[#eff6ff] px-3 py-2 text-xs font-semibold text-[#2563eb] transition hover:bg-[#dbeafe] disabled:cursor-wait disabled:opacity-60"
+              >
+                {publishing ? <Spinner /> : <GitPullRequest className="h-4 w-4" />}
+                {publishing ? "Publishing…" : "Push & create Draft PR"}
+              </button>
+            ) : null}
           </div>
-          <p className="mt-2 text-xs text-[#64748b]">
-            <span className="font-semibold">{candidate.repository}</span> ·{" "}
-            <span className="font-mono">{candidate.head_ref}</span> into{" "}
-            <span className="font-mono">{candidate.base_ref}</span>
-          </p>
         </header>
         <nav className="flex overflow-x-auto border-t border-[#e2e8f0] px-2" aria-label="Candidate details">
           {TABS.map((tab) => (
@@ -571,6 +898,12 @@ export default function ChangesPage() {
           ))}
         </nav>
       </section>
+
+      {publishError ? (
+        <div role="alert" className="rounded-sm border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          Draft PR publication failed: {publishError}
+        </div>
+      ) : null}
 
       {activeTab === "conversation" ? (
         <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_18rem]">

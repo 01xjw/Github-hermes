@@ -535,6 +535,20 @@ export const api = {
       `/api/v2/project-hermes/polling${query}`,
     );
   },
+  getProjectPullRequestStatuses: (
+    references: ProjectPullRequestStatusReference[],
+  ) =>
+    fetchJSON<ProjectPullRequestStatusResponse>(
+      "/api/v2/project-hermes/github/pull-request-statuses",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          schema_version: "pull-request-status-request.v1",
+          references,
+        }),
+      },
+    ),
   runPollingNow: () =>
     fetchJSON<PollingRun>("/api/v2/project-hermes/polling/run", {
       method: "POST",
@@ -621,6 +635,22 @@ export const api = {
   ) =>
     fetchJSON<InternalPullRequestCandidateFileDiffResponse>(
       `/api/v2/project-hermes/pull-request-candidates/${encodeURIComponent(candidateId)}/files/diff?path=${encodeURIComponent(path)}`,
+    ),
+  publishInternalPullRequestCandidate: (
+    candidateId: string,
+    confirmedLockDigest: string,
+  ) =>
+    fetchJSON<InternalPullRequestPublication>(
+      `/api/v2/project-hermes/pull-request-candidates/${encodeURIComponent(candidateId)}/publish`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          schema_version: "publish-internal-pr-request.v1",
+          confirmed_lock_digest: confirmedLockDigest,
+          confirm: true,
+        }),
+      },
     ),
   getLogs: (params: { file?: string; lines?: number; level?: string; component?: string }) => {
     const qs = new URLSearchParams();
@@ -2119,6 +2149,25 @@ export type ProjectWorkStatus =
   | "failed";
 export type WorkEnvironmentStatus = "pending" | "verified" | "failed";
 
+export interface ProjectPullRequestStatusReference {
+  key: string;
+  repository: string;
+  number?: number;
+  head_ref?: string;
+}
+
+export interface ProjectPullRequestStatus {
+  key: string;
+  state: "draft" | "open" | "merged" | "closed" | "unknown";
+  number: number | null;
+  url: string | null;
+  checked_at: string;
+}
+
+export interface ProjectPullRequestStatusResponse {
+  statuses: ProjectPullRequestStatus[];
+}
+
 export interface PollingTask {
   task_id: "github-issue-polling";
   enabled: boolean;
@@ -2527,6 +2576,16 @@ export interface InternalPullRequestCandidateFileDiffResponse {
   candidate_id: string;
   file: InternalPullRequestCandidateFile;
   diff: string;
+}
+
+export interface InternalPullRequestPublication {
+  url: string;
+  number: number;
+  title: string;
+  state: "draft" | "open" | "merged" | "closed";
+  draft: boolean;
+  head_ref: string;
+  base_ref: string;
 }
 
 export interface SessionInfo {

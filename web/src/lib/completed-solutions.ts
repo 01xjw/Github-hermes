@@ -1,4 +1,9 @@
-export type UpstreamPullRequestState = "open" | "merged";
+import type { ProjectPullRequestStatus } from "@/lib/api";
+
+export type UpstreamPullRequestState = Exclude<
+  ProjectPullRequestStatus["state"],
+  "unknown"
+>;
 
 export interface CompletedSolution {
   id: string;
@@ -19,7 +24,7 @@ export const COMPLETED_SOLUTIONS = [
     title: "Node commands support ALL",
     summary:
       "Added case-insensitive ALL support to node label, drain, and remove, with batch-operation test coverage.",
-    upstreamState: "open",
+    upstreamState: "merged",
   },
   {
     id: "spur-569",
