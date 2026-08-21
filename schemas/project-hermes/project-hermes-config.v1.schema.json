@@ -1,0 +1,1061 @@
+{
+  "$defs": {
+    "CodexTaskRuntimeConfig": {
+      "additionalProperties": false,
+      "description": "Per-task Codex app-server policy.",
+      "properties": {
+        "cli_version": {
+          "const": "0.144.4",
+          "default": "0.144.4",
+          "title": "Cli Version",
+          "type": "string"
+        },
+        "credential_delivery": {
+          "$ref": "#/$defs/CredentialDeliveryMode",
+          "default": "disabled"
+        },
+        "credentials_file": {
+          "anyOf": [
+            {
+              "format": "path",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Credentials File"
+        },
+        "enabled": {
+          "default": false,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "escalation_profile": {
+          "default": "escalated",
+          "title": "Escalation Profile",
+          "type": "string"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model"
+        },
+        "model_profiles": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ModelRouteConfig"
+          },
+          "title": "Model Profiles",
+          "type": "object"
+        },
+        "model_provider": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model Provider"
+        },
+        "network_access": {
+          "default": false,
+          "title": "Network Access",
+          "type": "boolean"
+        },
+        "primary_profile": {
+          "default": "primary",
+          "title": "Primary Profile",
+          "type": "string"
+        },
+        "provider_api_key_env": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Api Key Env"
+        },
+        "provider_endpoint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Endpoint"
+        },
+        "provider_wire_api": {
+          "default": "responses",
+          "enum": [
+            "responses",
+            "chat"
+          ],
+          "title": "Provider Wire Api",
+          "type": "string"
+        },
+        "runtime_root": {
+          "default": ".project-hermes/runtime",
+          "format": "path",
+          "title": "Runtime Root",
+          "type": "string"
+        },
+        "sdk_version": {
+          "const": "0.144.4",
+          "default": "0.144.4",
+          "title": "Sdk Version",
+          "type": "string"
+        },
+        "startup_timeout_seconds": {
+          "default": 30,
+          "maximum": 300,
+          "minimum": 1,
+          "title": "Startup Timeout Seconds",
+          "type": "integer"
+        },
+        "turn_timeout_seconds": {
+          "default": 1800,
+          "maximum": 86400,
+          "minimum": 30,
+          "title": "Turn Timeout Seconds",
+          "type": "integer"
+        }
+      },
+      "title": "CodexTaskRuntimeConfig",
+      "type": "object"
+    },
+    "ControlPlaneConfig": {
+      "additionalProperties": false,
+      "description": "Control-plane connection and local development fallback.",
+      "properties": {
+        "api_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Api Url"
+        },
+        "database_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Database Url"
+        },
+        "lease_seconds": {
+          "default": 300,
+          "maximum": 3600,
+          "minimum": 15,
+          "title": "Lease Seconds",
+          "type": "integer"
+        },
+        "mode": {
+          "$ref": "#/$defs/ControlPlaneMode",
+          "default": "sqlite"
+        },
+        "sqlite_path": {
+          "default": ".project-hermes/control-plane.db",
+          "format": "path",
+          "title": "Sqlite Path",
+          "type": "string"
+        }
+      },
+      "title": "ControlPlaneConfig",
+      "type": "object"
+    },
+    "ControlPlaneMode": {
+      "description": "Supported controller persistence modes.",
+      "enum": [
+        "sqlite",
+        "postgres",
+        "http"
+      ],
+      "title": "ControlPlaneMode",
+      "type": "string"
+    },
+    "CredentialDeliveryMode": {
+      "description": "Reviewed credential delivery mechanisms.",
+      "enum": [
+        "disabled",
+        "file_mount"
+      ],
+      "title": "CredentialDeliveryMode",
+      "type": "string"
+    },
+    "GpuDevice": {
+      "additionalProperties": false,
+      "description": "Controller inventory for one physical GPU.",
+      "properties": {
+        "architecture": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Architecture"
+        },
+        "gpu_id": {
+          "title": "Gpu Id",
+          "type": "string"
+        },
+        "healthy": {
+          "default": true,
+          "title": "Healthy",
+          "type": "boolean"
+        },
+        "memory_mb": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Memory Mb"
+        },
+        "node": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Node"
+        },
+        "schema_version": {
+          "const": "gpu-device.v1",
+          "default": "gpu-device.v1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "topology_labels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Topology Labels",
+          "type": "object"
+        }
+      },
+      "required": [
+        "gpu_id"
+      ],
+      "title": "GpuDevice",
+      "type": "object"
+    },
+    "HermesRuntimeConfig": {
+      "additionalProperties": false,
+      "description": "Model policy for implementation coordination and review sessions.",
+      "properties": {
+        "allowed_tools": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Allowed Tools",
+          "type": "array"
+        },
+        "credentials_file": {
+          "anyOf": [
+            {
+              "format": "path",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Credentials File"
+        },
+        "loop_interval_seconds": {
+          "default": 5.0,
+          "maximum": 3600,
+          "minimum": 0.1,
+          "title": "Loop Interval Seconds",
+          "type": "number"
+        },
+        "model_profile": {
+          "$ref": "#/$defs/ModelRouteConfig"
+        },
+        "reviewer_profile": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ModelRouteConfig"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "session_db_path": {
+          "default": ".project-hermes/hermes-sessions.db",
+          "format": "path",
+          "title": "Session Db Path",
+          "type": "string"
+        },
+        "worker_handoff_profile": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ModelRouteConfig"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "HermesRuntimeConfig",
+      "type": "object"
+    },
+    "IssueRelevancePolicy": {
+      "description": "Mechanical hardware relevance policy for one watched repository.",
+      "enum": [
+        "amd_or_portable",
+        "amd_native",
+        "disabled"
+      ],
+      "title": "IssueRelevancePolicy",
+      "type": "string"
+    },
+    "KubernetesJobConfig": {
+      "additionalProperties": false,
+      "description": "Restricted Kubernetes Job execution backend.",
+      "properties": {
+        "active_release_state_path": {
+          "default": "/app/project-hermes/state/hermes/release.json",
+          "format": "path",
+          "title": "Active Release State Path",
+          "type": "string"
+        },
+        "allowed_image_prefixes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Allowed Image Prefixes",
+          "type": "array"
+        },
+        "artifact_archive_pvc_name": {
+          "default": "github-agent-workspace",
+          "title": "Artifact Archive Pvc Name",
+          "type": "string"
+        },
+        "artifact_archive_pvc_subpath": {
+          "default": "state/controller/worker-artifacts",
+          "title": "Artifact Archive Pvc Subpath",
+          "type": "string"
+        },
+        "artifact_archive_root": {
+          "default": "/app/project-hermes/state/controller/worker-artifacts",
+          "format": "path",
+          "title": "Artifact Archive Root",
+          "type": "string"
+        },
+        "codex_capacity_backoff_seconds": {
+          "default": 30,
+          "maximum": 300,
+          "minimum": 1,
+          "title": "Codex Capacity Backoff Seconds",
+          "type": "integer"
+        },
+        "codex_capacity_handoff_after_attempts": {
+          "default": 2,
+          "maximum": 20,
+          "minimum": 1,
+          "title": "Codex Capacity Handoff After Attempts",
+          "type": "integer"
+        },
+        "codex_capacity_resume_attempts": {
+          "default": 8,
+          "maximum": 20,
+          "minimum": 0,
+          "title": "Codex Capacity Resume Attempts",
+          "type": "integer"
+        },
+        "codex_request_max_retries": {
+          "default": 12,
+          "maximum": 50,
+          "minimum": 1,
+          "title": "Codex Request Max Retries",
+          "type": "integer"
+        },
+        "codex_stream_max_retries": {
+          "default": 8,
+          "maximum": 50,
+          "minimum": 1,
+          "title": "Codex Stream Max Retries",
+          "type": "integer"
+        },
+        "cpu_limit": {
+          "default": "4",
+          "title": "Cpu Limit",
+          "type": "string"
+        },
+        "cpu_request": {
+          "default": "1",
+          "title": "Cpu Request",
+          "type": "string"
+        },
+        "delete_timeout_seconds": {
+          "default": 60,
+          "maximum": 300,
+          "minimum": 1,
+          "title": "Delete Timeout Seconds",
+          "type": "integer"
+        },
+        "enabled": {
+          "default": false,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "gpu_architecture_label": {
+          "default": "amd.com/gpu.arch",
+          "title": "Gpu Architecture Label",
+          "type": "string"
+        },
+        "gpu_resource_name": {
+          "default": "amd.com/gpu",
+          "title": "Gpu Resource Name",
+          "type": "string"
+        },
+        "image_pull_secrets": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Image Pull Secrets",
+          "type": "array"
+        },
+        "job_service_account_name": {
+          "default": "project-hermes-job",
+          "title": "Job Service Account Name",
+          "type": "string"
+        },
+        "max_active_jobs": {
+          "const": 8,
+          "default": 8,
+          "title": "Max Active Jobs",
+          "type": "integer"
+        },
+        "max_timeout_seconds": {
+          "default": 7200,
+          "maximum": 86400,
+          "minimum": 30,
+          "title": "Max Timeout Seconds",
+          "type": "integer"
+        },
+        "max_total_gpus": {
+          "const": 6,
+          "default": 6,
+          "title": "Max Total Gpus",
+          "type": "integer"
+        },
+        "memory_limit": {
+          "default": "32Gi",
+          "title": "Memory Limit",
+          "type": "string"
+        },
+        "memory_request": {
+          "default": "4Gi",
+          "title": "Memory Request",
+          "type": "string"
+        },
+        "model_proxy_port": {
+          "default": 3128,
+          "maximum": 65535,
+          "minimum": 1,
+          "title": "Model Proxy Port",
+          "type": "integer"
+        },
+        "model_proxy_service_name": {
+          "default": "project-hermes-model-proxy",
+          "title": "Model Proxy Service Name",
+          "type": "string"
+        },
+        "model_secret_key": {
+          "default": "deepseek-api-key",
+          "title": "Model Secret Key",
+          "type": "string"
+        },
+        "model_secret_name": {
+          "default": "project-hermes-credentials",
+          "title": "Model Secret Name",
+          "type": "string"
+        },
+        "namespace": {
+          "default": "project-hermes-jobs",
+          "title": "Namespace",
+          "type": "string"
+        },
+        "node_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Node Name"
+        },
+        "release_pvc_name": {
+          "default": "github-agent-workspace",
+          "title": "Release Pvc Name",
+          "type": "string"
+        },
+        "release_pvc_subpath_prefix": {
+          "default": "releases/releases",
+          "title": "Release Pvc Subpath Prefix",
+          "type": "string"
+        },
+        "release_root": {
+          "default": "/app/project-hermes/release",
+          "format": "path",
+          "title": "Release Root",
+          "type": "string"
+        },
+        "source_bundle_pvc_name": {
+          "default": "github-agent-workspace",
+          "title": "Source Bundle Pvc Name",
+          "type": "string"
+        },
+        "source_bundle_pvc_subpath": {
+          "default": "state/controller/source-bundles",
+          "title": "Source Bundle Pvc Subpath",
+          "type": "string"
+        },
+        "source_bundle_root": {
+          "default": "/app/project-hermes/state/controller/source-bundles",
+          "format": "path",
+          "title": "Source Bundle Root",
+          "type": "string"
+        },
+        "ttl_seconds_after_finished": {
+          "default": 3600,
+          "maximum": 86400,
+          "minimum": 60,
+          "title": "Ttl Seconds After Finished",
+          "type": "integer"
+        }
+      },
+      "title": "KubernetesJobConfig",
+      "type": "object"
+    },
+    "ModelReasoningMode": {
+      "description": "Auditable reasoning behavior requested from a model provider.",
+      "enum": [
+        "provider_default",
+        "adaptive",
+        "disabled"
+      ],
+      "title": "ModelReasoningMode",
+      "type": "string"
+    },
+    "ModelRouteConfig": {
+      "additionalProperties": false,
+      "description": "Credential-free route for one named model profile.",
+      "properties": {
+        "context_window": {
+          "anyOf": [
+            {
+              "maximum": 10000000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Context Window"
+        },
+        "model": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Model",
+          "type": "string"
+        },
+        "model_provider": {
+          "maxLength": 64,
+          "minLength": 1,
+          "title": "Model Provider",
+          "type": "string"
+        },
+        "profile": {
+          "maxLength": 64,
+          "minLength": 1,
+          "title": "Profile",
+          "type": "string"
+        },
+        "provider_api_key_env": {
+          "title": "Provider Api Key Env",
+          "type": "string"
+        },
+        "provider_endpoint": {
+          "title": "Provider Endpoint",
+          "type": "string"
+        },
+        "provider_wire_api": {
+          "default": "chat",
+          "enum": [
+            "responses",
+            "chat"
+          ],
+          "title": "Provider Wire Api",
+          "type": "string"
+        },
+        "reasoning_effort": {
+          "anyOf": [
+            {
+              "maxLength": 32,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reasoning Effort"
+        },
+        "reasoning_mode": {
+          "$ref": "#/$defs/ModelReasoningMode",
+          "default": "provider_default"
+        }
+      },
+      "required": [
+        "profile",
+        "model",
+        "model_provider",
+        "provider_endpoint",
+        "provider_api_key_env"
+      ],
+      "title": "ModelRouteConfig",
+      "type": "object"
+    },
+    "PollingConfig": {
+      "additionalProperties": false,
+      "description": "Schedule, repository scope, and mechanical Issue filter policy.",
+      "properties": {
+        "agent_instructions_path": {
+          "default": "project_hermes/AGENT.md",
+          "format": "path",
+          "title": "Agent Instructions Path",
+          "type": "string"
+        },
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "exclude_labels": {
+          "default": [
+            "duplicate",
+            "invalid",
+            "wontfix",
+            "question"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "title": "Exclude Labels",
+          "type": "array"
+        },
+        "git_command_timeout_seconds": {
+          "default": 900,
+          "maximum": 3600,
+          "minimum": 30,
+          "title": "Git Command Timeout Seconds",
+          "type": "integer"
+        },
+        "git_fetch_attempts": {
+          "default": 3,
+          "maximum": 10,
+          "minimum": 1,
+          "title": "Git Fetch Attempts",
+          "type": "integer"
+        },
+        "git_fetch_retry_backoff_seconds": {
+          "default": 5,
+          "maximum": 300,
+          "minimum": 0,
+          "title": "Git Fetch Retry Backoff Seconds",
+          "type": "integer"
+        },
+        "github_max_retries": {
+          "default": 3,
+          "maximum": 10,
+          "minimum": 0,
+          "title": "Github Max Retries",
+          "type": "integer"
+        },
+        "github_request_timeout_seconds": {
+          "default": 60,
+          "maximum": 300,
+          "minimum": 1,
+          "title": "Github Request Timeout Seconds",
+          "type": "integer"
+        },
+        "interval_seconds": {
+          "default": 900,
+          "maximum": 86400,
+          "minimum": 30,
+          "title": "Interval Seconds",
+          "type": "integer"
+        },
+        "manager_error_retry_seconds": {
+          "default": 60,
+          "maximum": 300,
+          "minimum": 30,
+          "title": "Manager Error Retry Seconds",
+          "type": "integer"
+        },
+        "manager_fresh_session_per_decision": {
+          "default": true,
+          "title": "Manager Fresh Session Per Decision",
+          "type": "boolean"
+        },
+        "manager_idle_interval_seconds": {
+          "default": 300,
+          "maximum": 3600,
+          "minimum": 30,
+          "title": "Manager Idle Interval Seconds",
+          "type": "integer"
+        },
+        "manager_issue_body_char_limit": {
+          "default": 6000,
+          "maximum": 20000,
+          "minimum": 1000,
+          "title": "Manager Issue Body Char Limit",
+          "type": "integer"
+        },
+        "manager_projection_limit": {
+          "default": 6,
+          "maximum": 100,
+          "minimum": 1,
+          "title": "Manager Projection Limit",
+          "type": "integer"
+        },
+        "manager_protocol_retry_seconds": {
+          "default": 30,
+          "maximum": 300,
+          "minimum": 5,
+          "title": "Manager Protocol Retry Seconds",
+          "type": "integer"
+        },
+        "max_active_work_items": {
+          "default": 6,
+          "maximum": 32,
+          "minimum": 1,
+          "title": "Max Active Work Items",
+          "type": "integer"
+        },
+        "max_candidates_per_repository": {
+          "default": 30,
+          "maximum": 5000,
+          "minimum": 1,
+          "title": "Max Candidates Per Repository",
+          "type": "integer"
+        },
+        "max_candidates_per_run": {
+          "default": 30,
+          "maximum": 5000,
+          "minimum": 1,
+          "title": "Max Candidates Per Run",
+          "type": "integer"
+        },
+        "max_global_gpus": {
+          "default": 6,
+          "maximum": 8,
+          "minimum": 0,
+          "title": "Max Global Gpus",
+          "type": "integer"
+        },
+        "max_global_jobs": {
+          "default": 6,
+          "maximum": 32,
+          "minimum": 1,
+          "title": "Max Global Jobs",
+          "type": "integer"
+        },
+        "max_issue_pages_per_repository": {
+          "default": 1,
+          "maximum": 100,
+          "minimum": 1,
+          "title": "Max Issue Pages Per Repository",
+          "type": "integer"
+        },
+        "max_pending_work_items": {
+          "default": 6,
+          "maximum": 128,
+          "minimum": 1,
+          "title": "Max Pending Work Items",
+          "type": "integer"
+        },
+        "minimum_evidence_score": {
+          "default": 4,
+          "maximum": 1000,
+          "minimum": 0,
+          "title": "Minimum Evidence Score",
+          "type": "integer"
+        },
+        "repositories": {
+          "items": {
+            "$ref": "#/$defs/PollingRepositoryConfig"
+          },
+          "title": "Repositories",
+          "type": "array"
+        },
+        "repositories_per_run": {
+          "default": 1,
+          "maximum": 100,
+          "minimum": 1,
+          "title": "Repositories Per Run",
+          "type": "integer"
+        },
+        "repository_skills_path": {
+          "default": "project_hermes/repository_skills",
+          "format": "path",
+          "title": "Repository Skills Path",
+          "type": "string"
+        },
+        "require_body": {
+          "default": true,
+          "title": "Require Body",
+          "type": "boolean"
+        },
+        "require_operator_selection": {
+          "default": false,
+          "title": "Require Operator Selection",
+          "type": "boolean"
+        },
+        "require_repository_skills": {
+          "default": false,
+          "title": "Require Repository Skills",
+          "type": "boolean"
+        },
+        "rolling_window_days": {
+          "default": 30,
+          "maximum": 365,
+          "minimum": 1,
+          "title": "Rolling Window Days",
+          "type": "integer"
+        },
+        "sqlite_path": {
+          "default": ".project-hermes/polling.db",
+          "format": "path",
+          "title": "Sqlite Path",
+          "type": "string"
+        },
+        "worker_capacity_retry_base_seconds": {
+          "default": 300,
+          "maximum": 86400,
+          "minimum": 30,
+          "title": "Worker Capacity Retry Base Seconds",
+          "type": "integer"
+        },
+        "worker_capacity_retry_max_seconds": {
+          "default": 3600,
+          "maximum": 86400,
+          "minimum": 30,
+          "title": "Worker Capacity Retry Max Seconds",
+          "type": "integer"
+        }
+      },
+      "title": "PollingConfig",
+      "type": "object"
+    },
+    "PollingRepositoryConfig": {
+      "additionalProperties": false,
+      "description": "One configurable GitHub repository watched by the polling task.",
+      "properties": {
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "exclude_labels": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Exclude Labels",
+          "type": "array"
+        },
+        "include_labels": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Include Labels",
+          "type": "array"
+        },
+        "minimum_evidence_score": {
+          "anyOf": [
+            {
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Minimum Evidence Score"
+        },
+        "relevance_policy": {
+          "$ref": "#/$defs/IssueRelevancePolicy",
+          "default": "amd_or_portable"
+        },
+        "repository": {
+          "title": "Repository",
+          "type": "string"
+        },
+        "skill_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Skill Name"
+        }
+      },
+      "required": [
+        "repository"
+      ],
+      "title": "PollingRepositoryConfig",
+      "type": "object"
+    },
+    "ResourceLimits": {
+      "additionalProperties": false,
+      "description": "Hard task limits fixed by the goal contract.",
+      "properties": {
+        "max_artifact_bytes": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Artifact Bytes"
+        },
+        "max_gpu_count": {
+          "default": 8,
+          "maximum": 8,
+          "minimum": 0,
+          "title": "Max Gpu Count",
+          "type": "integer"
+        },
+        "max_model_concurrency": {
+          "default": 7,
+          "maximum": 128,
+          "minimum": 1,
+          "title": "Max Model Concurrency",
+          "type": "integer"
+        },
+        "max_parallel_nodes": {
+          "default": 7,
+          "maximum": 128,
+          "minimum": 1,
+          "title": "Max Parallel Nodes",
+          "type": "integer"
+        }
+      },
+      "title": "ResourceLimits",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Top-level, versioned ProjectHermes configuration.",
+  "properties": {
+    "codex": {
+      "$ref": "#/$defs/CodexTaskRuntimeConfig"
+    },
+    "control_plane": {
+      "$ref": "#/$defs/ControlPlaneConfig"
+    },
+    "english_only": {
+      "default": true,
+      "title": "English Only",
+      "type": "boolean"
+    },
+    "gpu_devices": {
+      "items": {
+        "$ref": "#/$defs/GpuDevice"
+      },
+      "title": "Gpu Devices",
+      "type": "array"
+    },
+    "hermes": {
+      "$ref": "#/$defs/HermesRuntimeConfig"
+    },
+    "kubernetes_jobs": {
+      "$ref": "#/$defs/KubernetesJobConfig"
+    },
+    "polling": {
+      "$ref": "#/$defs/PollingConfig"
+    },
+    "project_root": {
+      "default": ".",
+      "format": "path",
+      "title": "Project Root",
+      "type": "string"
+    },
+    "resources": {
+      "$ref": "#/$defs/ResourceLimits"
+    },
+    "schema_version": {
+      "const": "project-hermes-config.v1",
+      "default": "project-hermes-config.v1",
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "title": "ProjectHermesConfig",
+  "type": "object"
+}

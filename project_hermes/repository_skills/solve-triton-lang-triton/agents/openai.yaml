@@ -1,0 +1,4 @@
+interface:
+  display_name: "Triton Issue Solver"
+  short_description: "Resolve Triton AMD-backend and compiler Issues"
+  default_prompt: "Use $solve-triton-lang-triton to solve the locked repository Issue."

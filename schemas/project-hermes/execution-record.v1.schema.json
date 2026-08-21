@@ -1,0 +1,629 @@
+{
+  "$defs": {
+    "ArtifactKind": {
+      "description": "Externally supplied artifact classes.",
+      "enum": [
+        "container_image",
+        "model",
+        "dataset",
+        "archive"
+      ],
+      "title": "ArtifactKind",
+      "type": "string"
+    },
+    "ArtifactManifest": {
+      "additionalProperties": false,
+      "description": "Verified, immutable artifact identity.",
+      "properties": {
+        "byte_size": {
+          "minimum": 0,
+          "title": "Byte Size",
+          "type": "integer"
+        },
+        "kind": {
+          "$ref": "#/$defs/ArtifactKind"
+        },
+        "local_path": {
+          "title": "Local Path",
+          "type": "string"
+        },
+        "request_id": {
+          "title": "Request Id",
+          "type": "string"
+        },
+        "resolved_digest": {
+          "title": "Resolved Digest",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "artifact-manifest.v1",
+          "default": "artifact-manifest.v1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "source_uri": {
+          "title": "Source Uri",
+          "type": "string"
+        },
+        "task_id": {
+          "title": "Task Id",
+          "type": "string"
+        },
+        "verified_at": {
+          "format": "date-time",
+          "title": "Verified At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "request_id",
+        "task_id",
+        "kind",
+        "source_uri",
+        "resolved_digest",
+        "local_path",
+        "byte_size"
+      ],
+      "title": "ArtifactManifest",
+      "type": "object"
+    },
+    "BackendExecution": {
+      "additionalProperties": false,
+      "description": "Immutable identity returned after backend admission.",
+      "properties": {
+        "backend": {
+          "title": "Backend",
+          "type": "string"
+        },
+        "execution_id": {
+          "title": "Execution Id",
+          "type": "string"
+        },
+        "native_id": {
+          "title": "Native Id",
+          "type": "string"
+        },
+        "submitted_at": {
+          "format": "date-time",
+          "title": "Submitted At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "execution_id",
+        "backend",
+        "native_id"
+      ],
+      "title": "BackendExecution",
+      "type": "object"
+    },
+    "ExecutionEnvironment": {
+      "description": "Supported execution environments.",
+      "enum": [
+        "local",
+        "kubernetes",
+        "gpu_cluster"
+      ],
+      "title": "ExecutionEnvironment",
+      "type": "string"
+    },
+    "ExecutionObservation": {
+      "additionalProperties": false,
+      "description": "One authoritative observation of an external execution object.",
+      "properties": {
+        "completed_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Completed At"
+        },
+        "duration_ms": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Duration Ms"
+        },
+        "environment": {
+          "additionalProperties": true,
+          "title": "Environment",
+          "type": "object"
+        },
+        "execution_id": {
+          "title": "Execution Id",
+          "type": "string"
+        },
+        "exit_code": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Exit Code"
+        },
+        "log_refs": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Log Refs",
+          "type": "array"
+        },
+        "observed_at": {
+          "format": "date-time",
+          "title": "Observed At",
+          "type": "string"
+        },
+        "result": {
+          "additionalProperties": true,
+          "title": "Result",
+          "type": "object"
+        },
+        "started_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Started At"
+        },
+        "status": {
+          "$ref": "#/$defs/ExecutionStatus"
+        },
+        "terminated": {
+          "default": false,
+          "title": "Terminated",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "execution_id",
+        "status"
+      ],
+      "title": "ExecutionObservation",
+      "type": "object"
+    },
+    "ExecutionRequest": {
+      "additionalProperties": false,
+      "description": "An execution shape requested without a predicted duration.",
+      "properties": {
+        "artifact_byte_limit": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Artifact Byte Limit"
+        },
+        "artifact_request_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Artifact Request Ids",
+          "type": "array"
+        },
+        "candidate_digest": {
+          "title": "Candidate Digest",
+          "type": "string"
+        },
+        "command": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Command",
+          "type": "array"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "environment": {
+          "$ref": "#/$defs/ExecutionEnvironment"
+        },
+        "gpu": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GpuRequest"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "idempotency_key": {
+          "title": "Idempotency Key",
+          "type": "string"
+        },
+        "image_digest": {
+          "title": "Image Digest",
+          "type": "string"
+        },
+        "image_repository": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Image Repository"
+        },
+        "metadata": {
+          "additionalProperties": true,
+          "title": "Metadata",
+          "type": "object"
+        },
+        "network_access": {
+          "default": false,
+          "title": "Network Access",
+          "type": "boolean"
+        },
+        "node_id": {
+          "title": "Node Id",
+          "type": "string"
+        },
+        "repository": {
+          "title": "Repository",
+          "type": "string"
+        },
+        "request_id": {
+          "title": "Request Id",
+          "type": "string"
+        },
+        "run_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Run Id"
+        },
+        "schema_version": {
+          "const": "execution-request.v1",
+          "default": "execution-request.v1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "task_id": {
+          "title": "Task Id",
+          "type": "string"
+        },
+        "timeout_seconds": {
+          "default": 1800,
+          "maximum": 86400,
+          "minimum": 1,
+          "title": "Timeout Seconds",
+          "type": "integer"
+        },
+        "workspace_lease_id": {
+          "title": "Workspace Lease Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "request_id",
+        "task_id",
+        "node_id",
+        "repository",
+        "workspace_lease_id",
+        "candidate_digest",
+        "command",
+        "environment",
+        "image_digest",
+        "idempotency_key"
+      ],
+      "title": "ExecutionRequest",
+      "type": "object"
+    },
+    "ExecutionStatus": {
+      "description": "Controller-visible execution lifecycle.",
+      "enum": [
+        "QUEUED",
+        "WAITING_ARTIFACT",
+        "WAITING_RESOURCE",
+        "ADMITTING",
+        "RUNNING",
+        "TERMINATING",
+        "SUCCEEDED",
+        "FAILED",
+        "CANCELLED"
+      ],
+      "title": "ExecutionStatus",
+      "type": "string"
+    },
+    "GpuAllocationStatus": {
+      "description": "GPU allocation lifecycle.",
+      "enum": [
+        "ALLOCATED",
+        "TERMINATING",
+        "RELEASED"
+      ],
+      "title": "GpuAllocationStatus",
+      "type": "string"
+    },
+    "GpuLease": {
+      "additionalProperties": false,
+      "description": "Atomic GPU allocation tied to one execution object.",
+      "properties": {
+        "allocated_at": {
+          "format": "date-time",
+          "title": "Allocated At",
+          "type": "string"
+        },
+        "execution_id": {
+          "title": "Execution Id",
+          "type": "string"
+        },
+        "gpu_ids": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 8,
+          "minItems": 1,
+          "title": "Gpu Ids",
+          "type": "array"
+        },
+        "lease_id": {
+          "title": "Lease Id",
+          "type": "string"
+        },
+        "released_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Released At"
+        },
+        "request_id": {
+          "title": "Request Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "gpu-lease.v1",
+          "default": "gpu-lease.v1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/GpuAllocationStatus",
+          "default": "ALLOCATED"
+        },
+        "task_id": {
+          "title": "Task Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "lease_id",
+        "request_id",
+        "task_id",
+        "gpu_ids",
+        "execution_id"
+      ],
+      "title": "GpuLease",
+      "type": "object"
+    },
+    "GpuRequest": {
+      "additionalProperties": false,
+      "description": "Request for GPUs.\n\nThere is intentionally no duration field. A lease is released only after\nthe associated execution pod or job is confirmed terminated.",
+      "properties": {
+        "architecture": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Architecture"
+        },
+        "count": {
+          "maximum": 8,
+          "minimum": 1,
+          "title": "Count",
+          "type": "integer"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "environment": {
+          "$ref": "#/$defs/ExecutionEnvironment",
+          "default": "gpu_cluster"
+        },
+        "image_digest": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Image Digest"
+        },
+        "minimum_memory_mb": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Minimum Memory Mb"
+        },
+        "request_id": {
+          "title": "Request Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "gpu-request.v1",
+          "default": "gpu-request.v1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "task_id": {
+          "title": "Task Id",
+          "type": "string"
+        },
+        "topology": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Topology"
+        }
+      },
+      "required": [
+        "request_id",
+        "task_id",
+        "count"
+      ],
+      "title": "GpuRequest",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Durable execution projection.",
+  "properties": {
+    "artifact_manifests": {
+      "items": {
+        "$ref": "#/$defs/ArtifactManifest"
+      },
+      "title": "Artifact Manifests",
+      "type": "array"
+    },
+    "backend_execution": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/BackendExecution"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "blocker": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Blocker"
+    },
+    "execution_id": {
+      "title": "Execution Id",
+      "type": "string"
+    },
+    "gpu_lease": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/GpuLease"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "observation": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ExecutionObservation"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "request": {
+      "$ref": "#/$defs/ExecutionRequest"
+    },
+    "schema_version": {
+      "const": "execution-record.v1",
+      "default": "execution-record.v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "status": {
+      "$ref": "#/$defs/ExecutionStatus",
+      "default": "QUEUED"
+    },
+    "updated_at": {
+      "format": "date-time",
+      "title": "Updated At",
+      "type": "string"
+    },
+    "version": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Version",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "execution_id",
+    "request"
+  ],
+  "title": "ExecutionRecord",
+  "type": "object"
+}

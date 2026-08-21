@@ -1,0 +1,169 @@
+{
+  "$defs": {
+    "RepositoryReviewInput": {
+      "additionalProperties": false,
+      "description": "Frozen diff identity and location for one candidate repository.",
+      "properties": {
+        "absolute_repository_path": {
+          "title": "Absolute Repository Path",
+          "type": "string"
+        },
+        "base_sha": {
+          "title": "Base Sha",
+          "type": "string"
+        },
+        "branch": {
+          "title": "Branch",
+          "type": "string"
+        },
+        "code_diff_sha": {
+          "title": "Code Diff Sha",
+          "type": "string"
+        },
+        "complete_diff_ref": {
+          "title": "Complete Diff Ref",
+          "type": "string"
+        },
+        "includes_untracked": {
+          "title": "Includes Untracked",
+          "type": "boolean"
+        },
+        "repository": {
+          "title": "Repository",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "repository-review-input.v1",
+          "default": "repository-review-input.v1",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "repository",
+        "absolute_repository_path",
+        "base_sha",
+        "branch",
+        "code_diff_sha",
+        "complete_diff_ref",
+        "includes_untracked"
+      ],
+      "title": "RepositoryReviewInput",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Frozen read-only input shared by mandatory reviewer roles.",
+  "properties": {
+    "absolute_repository_path": {
+      "title": "Absolute Repository Path",
+      "type": "string"
+    },
+    "base_sha": {
+      "title": "Base Sha",
+      "type": "string"
+    },
+    "branch": {
+      "title": "Branch",
+      "type": "string"
+    },
+    "code_diff_sha": {
+      "title": "Code Diff Sha",
+      "type": "string"
+    },
+    "complete_diff_ref": {
+      "title": "Complete Diff Ref",
+      "type": "string"
+    },
+    "completion_matrix_digest": {
+      "title": "Completion Matrix Digest",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "evidence_ids": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Evidence Ids",
+      "type": "array"
+    },
+    "goal_revision": {
+      "minimum": 0,
+      "title": "Goal Revision",
+      "type": "integer"
+    },
+    "includes_untracked": {
+      "title": "Includes Untracked",
+      "type": "boolean"
+    },
+    "must_preserve": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Must Preserve",
+      "type": "array"
+    },
+    "non_goals": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Non Goals",
+      "type": "array"
+    },
+    "packet_id": {
+      "title": "Packet Id",
+      "type": "string"
+    },
+    "repository": {
+      "title": "Repository",
+      "type": "string"
+    },
+    "repository_inputs": {
+      "additionalProperties": {
+        "$ref": "#/$defs/RepositoryReviewInput"
+      },
+      "title": "Repository Inputs",
+      "type": "object"
+    },
+    "schema_version": {
+      "default": "review-packet.v2",
+      "enum": [
+        "review-packet.v1",
+        "review-packet.v2"
+      ],
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "target_hardware": {
+      "additionalProperties": true,
+      "title": "Target Hardware",
+      "type": "object"
+    },
+    "task_id": {
+      "title": "Task Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "packet_id",
+    "task_id",
+    "repository",
+    "absolute_repository_path",
+    "base_sha",
+    "branch",
+    "code_diff_sha",
+    "goal_revision",
+    "complete_diff_ref",
+    "includes_untracked",
+    "completion_matrix_digest",
+    "target_hardware",
+    "evidence_ids"
+  ],
+  "title": "ReviewPacket",
+  "type": "object"
+}

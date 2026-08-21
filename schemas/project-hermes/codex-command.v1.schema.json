@@ -1,0 +1,58 @@
+{
+  "$defs": {
+    "CodexCommandKind": {
+      "description": "Commands accepted by a task-private daemon.",
+      "enum": [
+        "run_turn",
+        "status",
+        "events",
+        "result",
+        "cancel",
+        "shutdown"
+      ],
+      "title": "CodexCommandKind",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "One newline-delimited request sent over the private socket.",
+  "properties": {
+    "after_sequence": {
+      "default": 0,
+      "minimum": 0,
+      "title": "After Sequence",
+      "type": "integer"
+    },
+    "command": {
+      "$ref": "#/$defs/CodexCommandKind"
+    },
+    "prompt": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Prompt"
+    },
+    "request_id": {
+      "title": "Request Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "codex-command.v1",
+      "default": "codex-command.v1",
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "request_id",
+    "command"
+  ],
+  "title": "CodexCommand",
+  "type": "object"
+}

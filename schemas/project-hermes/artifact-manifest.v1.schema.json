@@ -1,0 +1,69 @@
+{
+  "$defs": {
+    "ArtifactKind": {
+      "description": "Externally supplied artifact classes.",
+      "enum": [
+        "container_image",
+        "model",
+        "dataset",
+        "archive"
+      ],
+      "title": "ArtifactKind",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Verified, immutable artifact identity.",
+  "properties": {
+    "byte_size": {
+      "minimum": 0,
+      "title": "Byte Size",
+      "type": "integer"
+    },
+    "kind": {
+      "$ref": "#/$defs/ArtifactKind"
+    },
+    "local_path": {
+      "title": "Local Path",
+      "type": "string"
+    },
+    "request_id": {
+      "title": "Request Id",
+      "type": "string"
+    },
+    "resolved_digest": {
+      "title": "Resolved Digest",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "artifact-manifest.v1",
+      "default": "artifact-manifest.v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "source_uri": {
+      "title": "Source Uri",
+      "type": "string"
+    },
+    "task_id": {
+      "title": "Task Id",
+      "type": "string"
+    },
+    "verified_at": {
+      "format": "date-time",
+      "title": "Verified At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "request_id",
+    "task_id",
+    "kind",
+    "source_uri",
+    "resolved_digest",
+    "local_path",
+    "byte_size"
+  ],
+  "title": "ArtifactManifest",
+  "type": "object"
+}

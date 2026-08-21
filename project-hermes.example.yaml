@@ -1,0 +1,302 @@
+# ProjectHermes configuration.
+# Copy this file to project-hermes.yaml. Keep credentials in the separate,
+# gitignored file referenced by hermes.credentials_file and
+# codex.credentials_file.
+
+schema_version: project-hermes-config.v1
+project_root: .
+
+control_plane:
+  # SQLite is for local development and migration tests. Production uses the
+  # PostgreSQL or HTTP adapter owned by the control plane.
+  mode: sqlite
+  sqlite_path: .project-hermes/control-plane.db
+  database_url: null
+  api_url: null
+  lease_seconds: 300
+
+polling:
+  # Polling only discovers, filters, deduplicates, and queues Issues. Main
+  # Hermes reads AGENT.md and owns planning and execution decisions.
+  enabled: true
+  # Refresh each repository after 15 minutes. Repositories that have not yet
+  # been covered in the current pass are scanned immediately one after another.
+  interval_seconds: 900
+  # Training phase: scan one repository at a time across the last 30 days.
+  rolling_window_days: 30
+  repositories_per_run: 1
+  sqlite_path: .project-hermes/polling.db
+  agent_instructions_path: project_hermes/AGENT.md
+  repository_skills_path: project_hermes/repository_skills
+  require_repository_skills: true
+  # Set true while cultivating repository Skills: eligible Issues remain in
+  # discovery until an operator selects one in the Dashboard.
+  require_operator_selection: false
+  issue_screening_enabled: false
+  issue_screening_profile_path: project_hermes/screening_profiles/environment-issue-screener
+  issue_screening_batch_size: 12
+  issue_screening_protocol_retries: 2
+  # Immutable, release-reviewed facts supplied to the capability-free screener.
+  # Keep these empty until the exact Worker image has been probed.
+  issue_screening_software_capabilities: []
+  issue_screening_unavailable_capabilities: []
+  issue_screening_validation_constraints: []
+  # Name a real consumer only when the deployment supports explicit re-screening.
+  issue_screening_probe_consumer: null
+  require_screening_select_for_operator: false
+  minimum_evidence_score: 4
+  require_body: true
+  exclude_labels: [duplicate, invalid, wontfix, question]
+  max_issue_pages_per_repository: 30
+  max_candidates_per_repository: 3000
+  max_candidates_per_run: 3000
+  # Large repositories can be slow over the cluster's GitHub route. Keep each
+  # command bounded and retry only the immutable shallow baseline fetch.
+  git_command_timeout_seconds: 900
+  git_fetch_attempts: 3
+  git_fetch_retry_backoff_seconds: 5
+  # Pause discovery when six items are queued/planning; resume as soon as a
+  # worker lane accepts one. Running/review items are governed separately.
+  max_pending_work_items: 6
+  max_active_work_items: 6
+  max_global_jobs: 6
+  max_global_gpus: 6
+  max_review_execution_attempts: 3
+  manager_projection_limit: 6
+  manager_issue_body_char_limit: 6000
+  manager_fresh_session_per_decision: true
+  manager_idle_interval_seconds: 300
+  manager_error_retry_seconds: 300
+  manager_protocol_retry_seconds: 30
+  worker_capacity_retry_base_seconds: 300
+  worker_capacity_retry_max_seconds: 3600
+  repositories:
+    - repository: ROCm/ROCm
+      relevance_policy: amd_native
+      skill_name: solve-rocm-rocm
+    - repository: ROCm/composable_kernel
+      relevance_policy: amd_native
+      skill_name: solve-rocm-composable-kernel
+    - repository: ROCm/aiter
+      relevance_policy: amd_native
+      skill_name: solve-rocm-aiter
+    - repository: pytorch/pytorch
+      relevance_policy: amd_or_portable
+      skill_name: solve-pytorch-pytorch
+    - repository: pytorch/vision
+      relevance_policy: amd_or_portable
+      skill_name: solve-pytorch-vision
+    - repository: pytorch/executorch
+      relevance_policy: amd_or_portable
+      skill_name: solve-pytorch-executorch
+    - repository: microsoft/onnxruntime
+      relevance_policy: amd_or_portable
+      skill_name: solve-microsoft-onnxruntime
+    - repository: huggingface/diffusers
+      relevance_policy: amd_or_portable
+      skill_name: solve-huggingface-diffusers
+    - repository: huggingface/transformers
+      relevance_policy: amd_or_portable
+      skill_name: solve-huggingface-transformers
+    - repository: vllm-project/vllm
+      relevance_policy: amd_or_portable
+      skill_name: solve-vllm-project-vllm
+    - repository: sgl-project/sglang
+      relevance_policy: amd_or_portable
+      skill_name: solve-sgl-project-sglang
+    - repository: ggml-org/llama.cpp
+      relevance_policy: amd_or_portable
+      skill_name: solve-ggml-org-llama-cpp
+    - repository: flashinfer-ai/flashinfer
+      relevance_policy: amd_or_portable
+      skill_name: solve-flashinfer-ai-flashinfer
+    - repository: deepseek-ai/DeepEP
+      relevance_policy: amd_or_portable
+      skill_name: solve-deepseek-ai-deepep
+    - repository: deepseek-ai/DeepGEMM
+      relevance_policy: amd_or_portable
+      skill_name: solve-deepseek-ai-deepgemm
+    - repository: triton-lang/triton
+      relevance_policy: amd_or_portable
+      skill_name: solve-triton-lang-triton
+    - repository: PaddlePaddle/Paddle
+      relevance_policy: amd_or_portable
+      skill_name: solve-paddlepaddle-paddle
+    - repository: SemiAnalysisAI/InferenceX
+      relevance_policy: amd_or_portable
+      skill_name: solve-semianalysisai-inferencex
+
+hermes:
+  # Main Hermes coordinates through controller-owned state and has no direct
+  # tools unless each exact tool name is reviewed here.
+  session_db_path: .project-hermes/hermes-sessions.db
+  allowed_tools: []
+  loop_interval_seconds: 5.0
+  credentials_file: null
+  model_profile:
+    profile: hermes
+    model: deepseek-v4-pro
+    model_provider: deepseek
+    provider_endpoint: https://api.deepseek.com/v1
+    provider_api_key_env: DEEPSEEK_API_KEY
+    provider_wire_api: chat
+    reasoning_mode: provider_default
+    reasoning_effort: null
+    context_window: 1000000
+  reviewer_profile:
+    profile: reviewer
+    model: MiniMax-M3
+    model_provider: minimax-cn
+    provider_endpoint: https://api.minimaxi.com/v1
+    provider_api_key_env: MINIMAX_CN_API_KEY
+    provider_wire_api: chat
+    reasoning_mode: provider_default
+    reasoning_effort: null
+    context_window: 1000000
+  # Optional stateless summarizer used only when a Codex worker must continue
+  # in a fresh conversation. It inherits model_profile when omitted.
+  worker_handoff_profile: null
+
+codex:
+  # Fail closed until the credential-delivery ADR is accepted and a private
+  # credentials file is configured.
+  enabled: false
+  sdk_version: 0.144.4
+  cli_version: 0.144.4
+  runtime_root: .project-hermes/runtime
+  model: null
+  model_provider: null
+  provider_endpoint: null
+  provider_api_key_env: null
+  provider_wire_api: responses
+  model_profiles:
+    primary:
+      profile: codex-primary
+      model: deepseek-v4-pro
+      model_provider: deepseek
+      provider_endpoint: https://api.deepseek.com/v1
+      provider_api_key_env: DEEPSEEK_API_KEY
+      provider_wire_api: responses
+      reasoning_mode: provider_default
+      reasoning_effort: null
+      context_window: 1000000
+    escalated:
+      profile: codex-escalated
+      model: deepseek-v4-pro
+      model_provider: deepseek
+      provider_endpoint: https://api.deepseek.com/v1
+      provider_api_key_env: DEEPSEEK_API_KEY
+      provider_wire_api: responses
+      reasoning_mode: provider_default
+      reasoning_effort: null
+      context_window: 1000000
+  primary_profile: primary
+  escalation_profile: escalated
+  credential_delivery: disabled
+  credentials_file: null
+  network_access: false
+  startup_timeout_seconds: 30
+  turn_timeout_seconds: 1800
+
+kubernetes_jobs:
+  enabled: false
+  namespace: project-hermes-jobs
+  # Prefer PROJECT_HERMES_NODE_NAME from the Downward API in Kubernetes.
+  node_name: null
+  job_service_account_name: project-hermes-job
+  gpu_resource_name: amd.com/gpu
+  gpu_architecture_label: amd.com/gpu.arch
+  allowed_image_prefixes:
+    - docker.io/library/
+    - docker.io/rocm/
+  image_pull_secrets: []
+  cpu_request: "1"
+  cpu_limit: "4"
+  memory_request: 4Gi
+  memory_limit: 32Gi
+  # Bounded scratch space for one large patched runtime/install tree.
+  worker_tmp_size_limit: 32Gi
+  max_timeout_seconds: 7200
+  codex_request_max_retries: 12
+  codex_stream_max_retries: 8
+  codex_capacity_resume_attempts: 8
+  # After repeated 429s, summarize progress with the configured Hermes model
+  # and continue in a fresh Codex conversation in the same Pod workspace.
+  codex_capacity_handoff_after_attempts: 2
+  codex_capacity_backoff_seconds: 30
+  ttl_seconds_after_finished: 3600
+  delete_timeout_seconds: 60
+  release_root: /app/project-hermes/release
+  active_release_state_path: /app/project-hermes/state/hermes/release.json
+  release_pvc_name: github-agent-workspace
+  release_pvc_subpath_prefix: releases/releases
+  source_bundle_root: /app/project-hermes/state/controller/source-bundles
+  source_bundle_pvc_name: github-agent-workspace
+  source_bundle_pvc_subpath: state/controller/source-bundles
+  artifact_archive_root: /app/project-hermes/state/controller/worker-artifacts
+  artifact_archive_pvc_name: github-agent-workspace
+  artifact_archive_pvc_subpath: state/controller/worker-artifacts
+  model_secret_name: project-hermes-credentials
+  model_secret_key: deepseek-api-key
+  model_proxy_service_name: project-hermes-model-proxy
+  model_proxy_port: 3128
+  max_active_jobs: 8
+  max_total_gpus: 6
+
+resources:
+  max_parallel_nodes: 7
+  max_gpu_count: 6
+  max_model_concurrency: 7
+  max_artifact_bytes: null
+
+gpu_devices:
+  - gpu_id: gpu-0
+    architecture: gfx942
+    memory_mb: 196608
+    node: gpu-node-0
+    topology_labels: {fabric: xgmi-0}
+    healthy: true
+  - gpu_id: gpu-1
+    architecture: gfx942
+    memory_mb: 196608
+    node: gpu-node-0
+    topology_labels: {fabric: xgmi-0}
+    healthy: true
+  - gpu_id: gpu-2
+    architecture: gfx942
+    memory_mb: 196608
+    node: gpu-node-0
+    topology_labels: {fabric: xgmi-0}
+    healthy: true
+  - gpu_id: gpu-3
+    architecture: gfx942
+    memory_mb: 196608
+    node: gpu-node-0
+    topology_labels: {fabric: xgmi-0}
+    healthy: true
+  - gpu_id: gpu-4
+    architecture: gfx942
+    memory_mb: 196608
+    node: gpu-node-0
+    topology_labels: {fabric: xgmi-0}
+    healthy: true
+  - gpu_id: gpu-5
+    architecture: gfx942
+    memory_mb: 196608
+    node: gpu-node-0
+    topology_labels: {fabric: xgmi-0}
+    healthy: true
+  - gpu_id: gpu-6
+    architecture: gfx942
+    memory_mb: 196608
+    node: gpu-node-0
+    topology_labels: {fabric: xgmi-0}
+    healthy: true
+  - gpu_id: gpu-7
+    architecture: gfx942
+    memory_mb: 196608
+    node: gpu-node-0
+    topology_labels: {fabric: xgmi-0}
+    healthy: true
+
+english_only: true

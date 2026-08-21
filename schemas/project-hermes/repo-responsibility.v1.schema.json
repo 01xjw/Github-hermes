@@ -1,0 +1,43 @@
+{
+  "additionalProperties": false,
+  "description": "Ownership and dependency boundary for one repository.",
+  "properties": {
+    "depends_on": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Depends On",
+      "type": "array"
+    },
+    "pull_request_order": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Pull Request Order",
+      "type": "integer"
+    },
+    "repository": {
+      "title": "Repository",
+      "type": "string"
+    },
+    "responsibilities": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Responsibilities",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "repo-responsibility.v1",
+      "default": "repo-responsibility.v1",
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "repository",
+    "responsibilities"
+  ],
+  "title": "RepositoryResponsibility",
+  "type": "object"
+}

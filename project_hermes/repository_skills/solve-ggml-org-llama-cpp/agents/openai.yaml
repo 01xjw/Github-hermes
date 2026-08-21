@@ -1,0 +1,4 @@
+interface:
+  display_name: "llama.cpp Issue Solver"
+  short_description: "Resolve llama.cpp Issues across HIP and portable code"
+  default_prompt: "Use $solve-ggml-org-llama-cpp to solve the locked repository Issue."

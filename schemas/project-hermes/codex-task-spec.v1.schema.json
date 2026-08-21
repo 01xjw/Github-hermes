@@ -1,0 +1,193 @@
+{
+  "$defs": {
+    "ModelReasoningMode": {
+      "description": "Auditable reasoning behavior requested from a model provider.",
+      "enum": [
+        "provider_default",
+        "adaptive",
+        "disabled"
+      ],
+      "title": "ModelReasoningMode",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Immutable daemon provisioning input.",
+  "properties": {
+    "cli_version": {
+      "const": "0.144.4",
+      "default": "0.144.4",
+      "title": "Cli Version",
+      "type": "string"
+    },
+    "context_window": {
+      "anyOf": [
+        {
+          "maximum": 10000000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Context Window"
+    },
+    "credentials_file": {
+      "anyOf": [
+        {
+          "format": "path",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Credentials File"
+    },
+    "model": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Model"
+    },
+    "model_profile": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Model Profile"
+    },
+    "model_provider": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Model Provider"
+    },
+    "network_access": {
+      "default": false,
+      "title": "Network Access",
+      "type": "boolean"
+    },
+    "provider_api_key_env": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Provider Api Key Env"
+    },
+    "provider_endpoint": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Provider Endpoint"
+    },
+    "provider_wire_api": {
+      "default": "responses",
+      "enum": [
+        "responses",
+        "chat"
+      ],
+      "title": "Provider Wire Api",
+      "type": "string"
+    },
+    "reasoning_effort": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Reasoning Effort"
+    },
+    "reasoning_mode": {
+      "$ref": "#/$defs/ModelReasoningMode",
+      "default": "provider_default"
+    },
+    "runtime_generation": {
+      "default": 0,
+      "maximum": 1,
+      "minimum": 0,
+      "title": "Runtime Generation",
+      "type": "integer"
+    },
+    "runtime_root": {
+      "format": "path",
+      "title": "Runtime Root",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "codex-task-spec.v1",
+      "default": "codex-task-spec.v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "sdk_version": {
+      "const": "0.144.4",
+      "default": "0.144.4",
+      "title": "Sdk Version",
+      "type": "string"
+    },
+    "session_id": {
+      "title": "Session Id",
+      "type": "string"
+    },
+    "task_id": {
+      "title": "Task Id",
+      "type": "string"
+    },
+    "turn_timeout_seconds": {
+      "default": 1800,
+      "maximum": 86400,
+      "minimum": 30,
+      "title": "Turn Timeout Seconds",
+      "type": "integer"
+    },
+    "worktree_path": {
+      "format": "path",
+      "title": "Worktree Path",
+      "type": "string"
+    }
+  },
+  "required": [
+    "task_id",
+    "session_id",
+    "worktree_path",
+    "runtime_root"
+  ],
+  "title": "CodexTaskSpec",
+  "type": "object"
+}

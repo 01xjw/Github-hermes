@@ -1,0 +1,70 @@
+{
+  "$defs": {
+    "KnowledgeOutcome": {
+      "description": "Knowledge category selected from the task's terminal outcome.",
+      "enum": [
+        "positive",
+        "negative"
+      ],
+      "title": "KnowledgeOutcome",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Extracted knowledge awaiting independent validation.",
+  "properties": {
+    "body": {
+      "title": "Body",
+      "type": "string"
+    },
+    "candidate_id": {
+      "title": "Candidate Id",
+      "type": "string"
+    },
+    "code_diff_sha": {
+      "title": "Code Diff Sha",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "outcome": {
+      "$ref": "#/$defs/KnowledgeOutcome"
+    },
+    "schema_version": {
+      "const": "knowledge-candidate.v1",
+      "default": "knowledge-candidate.v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "source_evidence_ids": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Source Evidence Ids",
+      "type": "array"
+    },
+    "task_id": {
+      "title": "Task Id",
+      "type": "string"
+    },
+    "title": {
+      "title": "Title",
+      "type": "string"
+    }
+  },
+  "required": [
+    "candidate_id",
+    "task_id",
+    "outcome",
+    "title",
+    "body",
+    "source_evidence_ids",
+    "code_diff_sha"
+  ],
+  "title": "KnowledgeCandidate",
+  "type": "object"
+}

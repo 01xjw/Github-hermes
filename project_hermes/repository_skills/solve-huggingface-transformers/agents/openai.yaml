@@ -1,0 +1,4 @@
+interface:
+  display_name: "Transformers Issue Solver"
+  short_description: "Resolve Transformers Issues with model-focused tests"
+  default_prompt: "Use $solve-huggingface-transformers to solve the locked repository Issue."

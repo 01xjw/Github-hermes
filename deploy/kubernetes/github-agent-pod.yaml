@@ -1,0 +1,161 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: github-agent
+  namespace: project-hermes-jobs
+  labels:
+    app.kubernetes.io/name: github-agent
+    app.kubernetes.io/part-of: project-hermes
+  annotations:
+    project-hermes.io/release-digest: "@PROJECT_HERMES_RELEASE_DIGEST@"
+spec:
+  serviceAccountName: project-hermes-controller
+  automountServiceAccountToken: true
+  restartPolicy: Always
+  terminationGracePeriodSeconds: 30
+  nodeSelector:
+    kubernetes.io/hostname: wx-k8s-test-s-002
+  tolerations:
+    - key: amd-oneclick.io/memory-tier
+      operator: Equal
+      value: high
+      effect: NoSchedule
+  securityContext:
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: github-agent
+      image: "@PROJECT_HERMES_RUNTIME_IMAGE@"
+      imagePullPolicy: IfNotPresent
+      workingDir: /app/project-hermes/release/source
+      command:
+        - /bin/bash
+        - -lc
+      args:
+        - |
+          set -euo pipefail
+          release_root=/app/project-hermes/release
+          actual_digest="$(
+            tr -d '[:space:]' < "${release_root}/RELEASE_DIGEST"
+          )"
+          if [ "${actual_digest}" != "${PROJECT_HERMES_RELEASE_DIGEST}" ]; then
+            echo "mounted release digest does not match Pod manifest" >&2
+            exit 65
+          fi
+          if [ "$(
+            sha256sum "${release_root}/release-manifest.json" |
+              awk '{print $1}'
+          )" != "${actual_digest}" ]; then
+            echo "mounted release manifest failed verification" >&2
+            exit 65
+          fi
+          test -f "${HERMES_WEB_DIST}/index.html"
+          test -f "${PROJECT_HERMES_CONFIG}"
+          cd "${release_root}/source"
+          exec /opt/venv/bin/python -m hermes_cli.main dashboard \
+            --host 127.0.0.1 \
+            --port 8770 \
+            --no-open
+      env:
+        - name: HERMES_HOME
+          value: /app/project-hermes/state/hermes
+        - name: HERMES_WRITE_SAFE_ROOT
+          value: /app/project-hermes/state
+        - name: HERMES_WEB_DIST
+          value: /app/project-hermes/release/web
+        - name: HERMES_DISABLE_LAZY_INSTALLS
+          value: "1"
+        - name: PROJECT_HERMES_CONFIG
+          value: /app/project-hermes/release/config/project-hermes.cluster.yaml
+        - name: PROJECT_HERMES_RELEASE_DIGEST
+          value: "@PROJECT_HERMES_RELEASE_DIGEST@"
+        - name: PYTHONPATH
+          value: >-
+            /app/project-hermes/release/python:/app/project-hermes/release/source
+        - name: PYTHONDONTWRITEBYTECODE
+          value: "1"
+        - name: PROJECT_HERMES_NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        - name: PROJECT_HERMES_POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: PROJECT_HERMES_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        # Scheduled polling reads the GitHub API directly. The model access key
+        # is deliberately NOT injected here: the installer writes it to an
+        # owner-only credentials file that the controller reads instead.
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: project-hermes-credentials
+              key: github-token
+      ports:
+        - name: http
+          containerPort: 8770
+          protocol: TCP
+      resources:
+        requests:
+          cpu: "1"
+          memory: 48Gi
+        limits:
+          cpu: "4"
+          memory: 64Gi
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: ["ALL"]
+        privileged: false
+      startupProbe:
+        exec:
+          command:
+            - /bin/bash
+            - -lc
+            - "</dev/tcp/127.0.0.1/8770"
+        periodSeconds: 5
+        failureThreshold: 120
+      readinessProbe:
+        exec:
+          command:
+            - /bin/bash
+            - -lc
+            - "</dev/tcp/127.0.0.1/8770"
+        periodSeconds: 5
+        failureThreshold: 3
+      livenessProbe:
+        exec:
+          command:
+            - /bin/bash
+            - -lc
+            - "</dev/tcp/127.0.0.1/8770"
+        periodSeconds: 15
+        failureThreshold: 4
+      volumeMounts:
+        - name: workspace
+          mountPath: /app/project-hermes/release
+          subPath: >-
+            releases/releases/@PROJECT_HERMES_RELEASE_DIGEST@
+          readOnly: true
+        - name: workspace
+          mountPath: /app/project-hermes/state
+          subPath: state
+        - name: workspace
+          mountPath: /app/project-hermes/state/controller/workspaces
+          subPath: worktrees
+        - name: workspace
+          mountPath: /app/project-hermes/state/hermes/logs
+          subPath: logs
+        - name: dshm
+          mountPath: /dev/shm
+  volumes:
+    - name: workspace
+      persistentVolumeClaim:
+        claimName: github-agent-workspace
+    - name: dshm
+      emptyDir:
+        medium: Memory
+        sizeLimit: 16Gi

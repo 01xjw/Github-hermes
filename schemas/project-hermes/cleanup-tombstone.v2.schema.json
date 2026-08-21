@@ -1,0 +1,88 @@
+{
+  "$defs": {
+    "CleanupStatus": {
+      "description": "Crash-recoverable cleanup tombstone state.",
+      "enum": [
+        "PREPARED",
+        "COMPLETED"
+      ],
+      "title": "CleanupStatus",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Minimal audit row left after task-private state is deleted.",
+  "properties": {
+    "completed_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Completed At"
+    },
+    "deleted_paths": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Deleted Paths",
+      "type": "array"
+    },
+    "knowledge_commit_id": {
+      "title": "Knowledge Commit Id",
+      "type": "string"
+    },
+    "planned_paths": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Planned Paths",
+      "type": "array"
+    },
+    "prepared_at": {
+      "format": "date-time",
+      "title": "Prepared At",
+      "type": "string"
+    },
+    "retained_refs": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Retained Refs",
+      "type": "array"
+    },
+    "schema_version": {
+      "default": "cleanup-tombstone.v2",
+      "enum": [
+        "cleanup-tombstone.v1",
+        "cleanup-tombstone.v2"
+      ],
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "status": {
+      "$ref": "#/$defs/CleanupStatus",
+      "default": "COMPLETED"
+    },
+    "task_id": {
+      "title": "Task Id",
+      "type": "string"
+    },
+    "terminal_outcome": {
+      "title": "Terminal Outcome",
+      "type": "string"
+    }
+  },
+  "required": [
+    "task_id",
+    "terminal_outcome",
+    "knowledge_commit_id",
+    "deleted_paths"
+  ],
+  "title": "CleanupTombstone",
+  "type": "object"
+}

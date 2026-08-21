@@ -1,0 +1,42 @@
+{
+  "additionalProperties": false,
+  "description": "Human approval tied to one immutable candidate fingerprint.",
+  "properties": {
+    "approved_at": {
+      "format": "date-time",
+      "title": "Approved At",
+      "type": "string"
+    },
+    "approved_by": {
+      "title": "Approved By",
+      "type": "string"
+    },
+    "candidate_fingerprint": {
+      "title": "Candidate Fingerprint",
+      "type": "string"
+    },
+    "candidate_id": {
+      "title": "Candidate Id",
+      "type": "string"
+    },
+    "reason": {
+      "minLength": 1,
+      "title": "Reason",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "publication-approval.v1",
+      "default": "publication-approval.v1",
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "candidate_id",
+    "candidate_fingerprint",
+    "approved_by",
+    "reason"
+  ],
+  "title": "PublicationApproval",
+  "type": "object"
+}

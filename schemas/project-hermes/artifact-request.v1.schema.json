@@ -1,0 +1,79 @@
+{
+  "$defs": {
+    "ArtifactKind": {
+      "description": "Externally supplied artifact classes.",
+      "enum": [
+        "container_image",
+        "model",
+        "dataset",
+        "archive"
+      ],
+      "title": "ArtifactKind",
+      "type": "string"
+    },
+    "ArtifactStatus": {
+      "description": "Content-addressed artifact supply lifecycle.",
+      "enum": [
+        "REQUESTED",
+        "DOWNLOADING",
+        "VERIFIED",
+        "READY",
+        "FAILED"
+      ],
+      "title": "ArtifactStatus",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Controller-owned request for an external artifact.",
+  "properties": {
+    "destination": {
+      "title": "Destination",
+      "type": "string"
+    },
+    "expected_digest": {
+      "title": "Expected Digest",
+      "type": "string"
+    },
+    "kind": {
+      "$ref": "#/$defs/ArtifactKind"
+    },
+    "request_id": {
+      "title": "Request Id",
+      "type": "string"
+    },
+    "requested_at": {
+      "format": "date-time",
+      "title": "Requested At",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "artifact-request.v1",
+      "default": "artifact-request.v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "source_uri": {
+      "title": "Source Uri",
+      "type": "string"
+    },
+    "status": {
+      "$ref": "#/$defs/ArtifactStatus",
+      "default": "REQUESTED"
+    },
+    "task_id": {
+      "title": "Task Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "request_id",
+    "task_id",
+    "kind",
+    "source_uri",
+    "expected_digest",
+    "destination"
+  ],
+  "title": "ArtifactRequest",
+  "type": "object"
+}

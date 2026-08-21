@@ -1,0 +1,280 @@
+{
+  "$defs": {
+    "ArtifactKind": {
+      "description": "Externally supplied artifact classes.",
+      "enum": [
+        "container_image",
+        "model",
+        "dataset",
+        "archive"
+      ],
+      "title": "ArtifactKind",
+      "type": "string"
+    },
+    "ArtifactManifest": {
+      "additionalProperties": false,
+      "description": "Verified, immutable artifact identity.",
+      "properties": {
+        "byte_size": {
+          "minimum": 0,
+          "title": "Byte Size",
+          "type": "integer"
+        },
+        "kind": {
+          "$ref": "#/$defs/ArtifactKind"
+        },
+        "local_path": {
+          "title": "Local Path",
+          "type": "string"
+        },
+        "request_id": {
+          "title": "Request Id",
+          "type": "string"
+        },
+        "resolved_digest": {
+          "title": "Resolved Digest",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "artifact-manifest.v1",
+          "default": "artifact-manifest.v1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "source_uri": {
+          "title": "Source Uri",
+          "type": "string"
+        },
+        "task_id": {
+          "title": "Task Id",
+          "type": "string"
+        },
+        "verified_at": {
+          "format": "date-time",
+          "title": "Verified At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "request_id",
+        "task_id",
+        "kind",
+        "source_uri",
+        "resolved_digest",
+        "local_path",
+        "byte_size"
+      ],
+      "title": "ArtifactManifest",
+      "type": "object"
+    },
+    "ArtifactRequest": {
+      "additionalProperties": false,
+      "description": "Controller-owned request for an external artifact.",
+      "properties": {
+        "destination": {
+          "title": "Destination",
+          "type": "string"
+        },
+        "expected_digest": {
+          "title": "Expected Digest",
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/ArtifactKind"
+        },
+        "request_id": {
+          "title": "Request Id",
+          "type": "string"
+        },
+        "requested_at": {
+          "format": "date-time",
+          "title": "Requested At",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "artifact-request.v1",
+          "default": "artifact-request.v1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "source_uri": {
+          "title": "Source Uri",
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/ArtifactStatus",
+          "default": "REQUESTED"
+        },
+        "task_id": {
+          "title": "Task Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "request_id",
+        "task_id",
+        "kind",
+        "source_uri",
+        "expected_digest",
+        "destination"
+      ],
+      "title": "ArtifactRequest",
+      "type": "object"
+    },
+    "ArtifactStatus": {
+      "description": "Content-addressed artifact supply lifecycle.",
+      "enum": [
+        "REQUESTED",
+        "DOWNLOADING",
+        "VERIFIED",
+        "READY",
+        "FAILED"
+      ],
+      "title": "ArtifactStatus",
+      "type": "string"
+    },
+    "SupplyFailureKind": {
+      "description": "Actionable supply failure classes.",
+      "enum": [
+        "network",
+        "authentication",
+        "source_missing",
+        "checksum",
+        "import",
+        "policy",
+        "quota",
+        "unknown"
+      ],
+      "title": "SupplyFailureKind",
+      "type": "string"
+    },
+    "SupplyStatus": {
+      "description": "Offline artifact supply lifecycle.",
+      "enum": [
+        "MISSING",
+        "FETCH_QUEUED",
+        "FETCHING",
+        "VERIFYING",
+        "IMPORTING",
+        "READY",
+        "FAILED"
+      ],
+      "title": "SupplyStatus",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Durable projection of an offline artifact transfer.",
+  "properties": {
+    "attempt": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Attempt",
+      "type": "integer"
+    },
+    "failure_detail": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Failure Detail"
+    },
+    "failure_kind": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SupplyFailureKind"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "internal_ref": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Internal Ref"
+    },
+    "manifest": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ArtifactManifest"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "part_digests": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Part Digests",
+      "type": "array"
+    },
+    "request": {
+      "$ref": "#/$defs/ArtifactRequest"
+    },
+    "resolved_digest": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Resolved Digest"
+    },
+    "schema_version": {
+      "const": "artifact-supply-record.v1",
+      "default": "artifact-supply-record.v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "source_identity": {
+      "additionalProperties": true,
+      "title": "Source Identity",
+      "type": "object"
+    },
+    "status": {
+      "$ref": "#/$defs/SupplyStatus",
+      "default": "MISSING"
+    },
+    "supply_id": {
+      "title": "Supply Id",
+      "type": "string"
+    },
+    "transferred_bytes": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Transferred Bytes",
+      "type": "integer"
+    },
+    "updated_at": {
+      "format": "date-time",
+      "title": "Updated At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "supply_id",
+    "request"
+  ],
+  "title": "SupplyRecord",
+  "type": "object"
+}

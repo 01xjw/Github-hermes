@@ -1,0 +1,80 @@
+{
+  "$defs": {
+    "GpuAllocationStatus": {
+      "description": "GPU allocation lifecycle.",
+      "enum": [
+        "ALLOCATED",
+        "TERMINATING",
+        "RELEASED"
+      ],
+      "title": "GpuAllocationStatus",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Atomic GPU allocation tied to one execution object.",
+  "properties": {
+    "allocated_at": {
+      "format": "date-time",
+      "title": "Allocated At",
+      "type": "string"
+    },
+    "execution_id": {
+      "title": "Execution Id",
+      "type": "string"
+    },
+    "gpu_ids": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 8,
+      "minItems": 1,
+      "title": "Gpu Ids",
+      "type": "array"
+    },
+    "lease_id": {
+      "title": "Lease Id",
+      "type": "string"
+    },
+    "released_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Released At"
+    },
+    "request_id": {
+      "title": "Request Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "gpu-lease.v1",
+      "default": "gpu-lease.v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "status": {
+      "$ref": "#/$defs/GpuAllocationStatus",
+      "default": "ALLOCATED"
+    },
+    "task_id": {
+      "title": "Task Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "lease_id",
+    "request_id",
+    "task_id",
+    "gpu_ids",
+    "execution_id"
+  ],
+  "title": "GpuLease",
+  "type": "object"
+}

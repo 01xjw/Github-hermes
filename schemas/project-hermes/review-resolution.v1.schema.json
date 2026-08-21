@@ -1,0 +1,111 @@
+{
+  "$defs": {
+    "FindingDisposition": {
+      "description": "Allowed Hermes Lead dispositions for reviewer findings.",
+      "enum": [
+        "fixed",
+        "accepted_risk",
+        "rejected_with_evidence",
+        "escalated"
+      ],
+      "title": "FindingDisposition",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Auditable disposition of exactly one review finding.",
+  "properties": {
+    "decided_at": {
+      "format": "date-time",
+      "title": "Decided At",
+      "type": "string"
+    },
+    "disposition": {
+      "$ref": "#/$defs/FindingDisposition"
+    },
+    "evidence_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Evidence Ids",
+      "type": "array"
+    },
+    "finding_id": {
+      "title": "Finding Id",
+      "type": "string"
+    },
+    "goal_revision": {
+      "minimum": 0,
+      "title": "Goal Revision",
+      "type": "integer"
+    },
+    "independently_decided_by": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Independently Decided By"
+    },
+    "rationale": {
+      "minLength": 1,
+      "title": "Rationale",
+      "type": "string"
+    },
+    "replacement_diff_sha": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Replacement Diff Sha"
+    },
+    "resolution_id": {
+      "title": "Resolution Id",
+      "type": "string"
+    },
+    "resolved_by_session_id": {
+      "title": "Resolved By Session Id",
+      "type": "string"
+    },
+    "review_id": {
+      "title": "Review Id",
+      "type": "string"
+    },
+    "reviewed_diff_sha": {
+      "title": "Reviewed Diff Sha",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "review-resolution.v1",
+      "default": "review-resolution.v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "task_id": {
+      "title": "Task Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "resolution_id",
+    "task_id",
+    "review_id",
+    "finding_id",
+    "reviewed_diff_sha",
+    "goal_revision",
+    "disposition",
+    "rationale",
+    "resolved_by_session_id"
+  ],
+  "title": "ReviewResolution",
+  "type": "object"
+}

@@ -1,0 +1,187 @@
+{
+  "$defs": {
+    "CompletionEntry": {
+      "additionalProperties": false,
+      "description": "Status and evidence for one layer.",
+      "properties": {
+        "code_diff_sha": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Code Diff Sha"
+        },
+        "evidence_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidence Ids",
+          "type": "array"
+        },
+        "goal_revision": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Goal Revision"
+        },
+        "layer": {
+          "$ref": "#/$defs/CompletionLayer"
+        },
+        "rationale": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rationale"
+        },
+        "status": {
+          "$ref": "#/$defs/CompletionStatus",
+          "default": "PENDING"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "title": "Updated At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "layer"
+      ],
+      "title": "CompletionEntry",
+      "type": "object"
+    },
+    "CompletionLayer": {
+      "description": "The nine independently auditable completion layers.",
+      "enum": [
+        "implemented",
+        "gate_verified",
+        "operator_correct",
+        "operator_perf",
+        "serving_selected",
+        "serving_executed",
+        "final_e2e",
+        "packaged",
+        "ci_reviewed"
+      ],
+      "title": "CompletionLayer",
+      "type": "string"
+    },
+    "CompletionStatus": {
+      "description": "State of one completion layer.",
+      "enum": [
+        "PENDING",
+        "SATISFIED",
+        "BLOCKED",
+        "FAILED",
+        "INVALIDATED",
+        "NOT_APPLICABLE"
+      ],
+      "title": "CompletionStatus",
+      "type": "string"
+    },
+    "GoalPathCompletion": {
+      "additionalProperties": false,
+      "description": "Completion projection for one locked goal path and repository.",
+      "properties": {
+        "entries": {
+          "additionalProperties": {
+            "$ref": "#/$defs/CompletionEntry"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/CompletionLayer"
+          },
+          "title": "Entries",
+          "type": "object"
+        },
+        "path_id": {
+          "title": "Path Id",
+          "type": "string"
+        },
+        "repository": {
+          "title": "Repository",
+          "type": "string"
+        },
+        "required_layers": {
+          "items": {
+            "$ref": "#/$defs/CompletionLayer"
+          },
+          "minItems": 1,
+          "title": "Required Layers",
+          "type": "array"
+        }
+      },
+      "required": [
+        "path_id",
+        "repository",
+        "required_layers"
+      ],
+      "title": "GoalPathCompletion",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Per-goal, per-repository nine-layer completion projection.",
+  "properties": {
+    "entries": {
+      "additionalProperties": {
+        "$ref": "#/$defs/CompletionEntry"
+      },
+      "propertyNames": {
+        "$ref": "#/$defs/CompletionLayer"
+      },
+      "title": "Entries",
+      "type": "object"
+    },
+    "goal_paths": {
+      "additionalProperties": {
+        "$ref": "#/$defs/GoalPathCompletion"
+      },
+      "title": "Goal Paths",
+      "type": "object"
+    },
+    "required_layers": {
+      "items": {
+        "$ref": "#/$defs/CompletionLayer"
+      },
+      "title": "Required Layers",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "completion-matrix.v3",
+      "default": "completion-matrix.v3",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "task_id": {
+      "title": "Task Id",
+      "type": "string"
+    },
+    "updated_at": {
+      "format": "date-time",
+      "title": "Updated At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "task_id"
+  ],
+  "title": "CompletionMatrix",
+  "type": "object"
+}

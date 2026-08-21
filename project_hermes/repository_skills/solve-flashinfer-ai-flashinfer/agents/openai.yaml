@@ -1,0 +1,4 @@
+interface:
+  display_name: "FlashInfer Issue Solver"
+  short_description: "Resolve portable or AMD-relevant FlashInfer Issues"
+  default_prompt: "Use $solve-flashinfer-ai-flashinfer to solve the locked repository Issue."

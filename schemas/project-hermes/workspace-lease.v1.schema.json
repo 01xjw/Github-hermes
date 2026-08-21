@@ -1,0 +1,74 @@
+{
+  "additionalProperties": false,
+  "description": "Exclusive ownership of a task worktree.",
+  "properties": {
+    "acquired_at": {
+      "format": "date-time",
+      "title": "Acquired At",
+      "type": "string"
+    },
+    "base_sha": {
+      "title": "Base Sha",
+      "type": "string"
+    },
+    "branch_name": {
+      "title": "Branch Name",
+      "type": "string"
+    },
+    "lease_id": {
+      "title": "Lease Id",
+      "type": "string"
+    },
+    "mirror_path": {
+      "title": "Mirror Path",
+      "type": "string"
+    },
+    "owner_session_id": {
+      "title": "Owner Session Id",
+      "type": "string"
+    },
+    "released_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Released At"
+    },
+    "repository": {
+      "title": "Repository",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "workspace-lease.v1",
+      "default": "workspace-lease.v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "task_id": {
+      "title": "Task Id",
+      "type": "string"
+    },
+    "worktree_path": {
+      "title": "Worktree Path",
+      "type": "string"
+    }
+  },
+  "required": [
+    "lease_id",
+    "task_id",
+    "repository",
+    "mirror_path",
+    "worktree_path",
+    "branch_name",
+    "base_sha",
+    "owner_session_id"
+  ],
+  "title": "WorkspaceLease",
+  "type": "object"
+}

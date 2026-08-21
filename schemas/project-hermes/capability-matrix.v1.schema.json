@@ -1,0 +1,80 @@
+{
+  "$defs": {
+    "CapabilityDefinition": {
+      "additionalProperties": false,
+      "description": "A capability Hermes may invoke in any evidence-supported order.",
+      "properties": {
+        "capability_id": {
+          "title": "Capability Id",
+          "type": "string"
+        },
+        "consumes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Consumes",
+          "type": "array"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "produces": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Produces",
+          "type": "array"
+        },
+        "required_role": {
+          "$ref": "#/$defs/ProjectRole"
+        }
+      },
+      "required": [
+        "capability_id",
+        "description",
+        "required_role"
+      ],
+      "title": "CapabilityDefinition",
+      "type": "object"
+    },
+    "ProjectRole": {
+      "description": "Security identities recognized by the control plane.",
+      "enum": [
+        "control_plane",
+        "campaign_hermes",
+        "project_hermes",
+        "codex",
+        "runner",
+        "reviewer",
+        "curator",
+        "operator"
+      ],
+      "title": "ProjectRole",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Capability registry without workflow-order semantics.",
+  "properties": {
+    "capabilities": {
+      "items": {
+        "$ref": "#/$defs/CapabilityDefinition"
+      },
+      "minItems": 1,
+      "title": "Capabilities",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "capability-matrix.v1",
+      "default": "capability-matrix.v1",
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "capabilities"
+  ],
+  "title": "CapabilityMatrix",
+  "type": "object"
+}

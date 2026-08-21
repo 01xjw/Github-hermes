@@ -1,0 +1,243 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: digitalocean-429-concurrent-probe
+  namespace: project-hermes-jobs
+  labels:
+    app.kubernetes.io/name: digitalocean-429-concurrent-probe
+    app.kubernetes.io/part-of: project-hermes
+automountServiceAccountToken: true
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: digitalocean-429-concurrent-probe
+  namespace: project-hermes-jobs
+  labels:
+    app.kubernetes.io/name: digitalocean-429-concurrent-probe
+    app.kubernetes.io/part-of: project-hermes
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: digitalocean-429-concurrent-probe
+  namespace: project-hermes-jobs
+  labels:
+    app.kubernetes.io/name: digitalocean-429-concurrent-probe
+    app.kubernetes.io/part-of: project-hermes
+subjects:
+  - kind: ServiceAccount
+    name: digitalocean-429-concurrent-probe
+    namespace: project-hermes-jobs
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: digitalocean-429-concurrent-probe
+---
+# Route each same-model control request through the CONNECT proxy used by Codex.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: digitalocean-429-probe-to-model-proxy
+  namespace: project-hermes-jobs
+  labels:
+    app.kubernetes.io/name: digitalocean-429-concurrent-probe
+    app.kubernetes.io/part-of: project-hermes
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: project-hermes-model-proxy
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: digitalocean-429-concurrent-probe
+      ports:
+        - protocol: TCP
+          port: 3128
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: digitalocean-429-concurrent-probe-egress
+  namespace: project-hermes-jobs
+  labels:
+    app.kubernetes.io/name: digitalocean-429-concurrent-probe
+    app.kubernetes.io/part-of: project-hermes
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: digitalocean-429-concurrent-probe
+  policyTypes: ["Ingress", "Egress"]
+  ingress: []
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: project-hermes-model-proxy
+      ports:
+        - protocol: TCP
+          port: 3128
+    # The API Service may be evaluated before or after kube-proxy DNAT,
+    # depending on the cluster CNI. Limit the internal allowance to HTTPS.
+    - to:
+        - ipBlock:
+            cidr: 10.0.0.0/8
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 6443
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: digitalocean-429-concurrent-probe
+  namespace: project-hermes-jobs
+  labels:
+    app.kubernetes.io/name: digitalocean-429-concurrent-probe
+    app.kubernetes.io/part-of: project-hermes
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: digitalocean-429-concurrent-probe
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: digitalocean-429-concurrent-probe
+        app.kubernetes.io/part-of: project-hermes
+    spec:
+      serviceAccountName: digitalocean-429-concurrent-probe
+      automountServiceAccountToken: true
+      nodeSelector:
+        kubernetes.io/hostname: wx-k8s-test-s-002
+      terminationGracePeriodSeconds: 60
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: probe
+          image: 10.5.10.89:1808/xinwei/crpi-xhg6joi134vrkpzq.cn-shanghai.personal.cr.aliyuncs.com/vivienfanghua/amd-oneclick-base:rocm7.2.1-py3.12-v20260416@sha256:731ec9e8521ea33efbf9839974fe6b48e94cfc0c2b7bd3e94b4de524096b2dd8
+          imagePullPolicy: IfNotPresent
+          command:
+            - /opt/venv/bin/python
+            - /opt/probe/digitalocean_429_concurrent_probe.py
+          env:
+            - name: MODEL_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: project-hermes-credentials
+                  key: model-access-key
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: PROBE_LOG_ROOT
+              value: /logs/digitalocean-429-concurrent-probe
+            # Start-to-start target. A new periodic probe waits if the prior
+            # one is still running, so ordinary control probes never overlap.
+            - name: PROBE_INTERVAL_SECONDS
+              value: "3"
+            - name: LOG_POLL_SECONDS
+              value: "0.75"
+            - name: PRE_EVENT_WINDOW_SECONDS
+              value: "12"
+            - name: POST_EVENT_WINDOW_SECONDS
+              value: "5"
+            - name: STOP_PROBES_AFTER_429_SECONDS
+              value: "5"
+            - name: PROBE_ACTIVE_ONLY
+              value: "true"
+            - name: STARTUP_PROBE
+              # Wait until exactly one eligible Codex Worker supplies the
+              # model name. This prevents a default-model request at startup.
+              value: "false"
+            - name: PROBE_RETENTION_DAYS
+              value: "30"
+            - name: HTTPS_PROXY
+              value: http://project-hermes-model-proxy.project-hermes-jobs.svc:3128
+            - name: https_proxy
+              value: http://project-hermes-model-proxy.project-hermes-jobs.svc:3128
+            - name: NO_PROXY
+              value: kubernetes.default.svc,.svc,.cluster.local,10.0.0.0/8
+            - name: no_proxy
+              value: kubernetes.default.svc,.svc,.cluster.local,10.0.0.0/8
+            - name: PYTHONDONTWRITEBYTECODE
+              value: "1"
+          readinessProbe:
+            exec:
+              command:
+                - /bin/bash
+                - -lc
+                - test -s /logs/digitalocean-429-concurrent-probe/heartbeat.json
+            initialDelaySeconds: 2
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 6
+          livenessProbe:
+            exec:
+              command:
+                - /bin/bash
+                - -lc
+                - test -n "$(find /logs/digitalocean-429-concurrent-probe/heartbeat.json -mmin -2 -print -quit 2>/dev/null)"
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 50m
+              memory: 96Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            privileged: false
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - name: probe-script
+              mountPath: /opt/probe
+              readOnly: true
+            - name: logs
+              mountPath: /logs
+              subPath: state/hermes/logs
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: probe-script
+          configMap:
+            name: digitalocean-429-concurrent-probe
+            defaultMode: 365
+        - name: logs
+          persistentVolumeClaim:
+            claimName: github-agent-workspace
+        - name: tmp
+          emptyDir:
+            sizeLimit: 128Mi

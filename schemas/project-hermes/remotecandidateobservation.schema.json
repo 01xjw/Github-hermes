@@ -1,0 +1,48 @@
+{
+  "additionalProperties": false,
+  "description": "Remote GitHub facts read immediately before publication.",
+  "properties": {
+    "base_sha": {
+      "title": "Base Sha",
+      "type": "string"
+    },
+    "body_digest": {
+      "title": "Body Digest",
+      "type": "string"
+    },
+    "branch": {
+      "title": "Branch",
+      "type": "string"
+    },
+    "files": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Files",
+      "type": "array"
+    },
+    "head_sha": {
+      "title": "Head Sha",
+      "type": "string"
+    },
+    "observed_at": {
+      "format": "date-time",
+      "title": "Observed At",
+      "type": "string"
+    },
+    "repository": {
+      "title": "Repository",
+      "type": "string"
+    }
+  },
+  "required": [
+    "repository",
+    "branch",
+    "head_sha",
+    "base_sha",
+    "files",
+    "body_digest"
+  ],
+  "title": "RemoteCandidateObservation",
+  "type": "object"
+}

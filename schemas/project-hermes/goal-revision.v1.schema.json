@@ -1,0 +1,109 @@
+{
+  "$defs": {
+    "ProjectRole": {
+      "description": "Security identities recognized by the control plane.",
+      "enum": [
+        "control_plane",
+        "campaign_hermes",
+        "project_hermes",
+        "codex",
+        "runner",
+        "reviewer",
+        "curator",
+        "operator"
+      ],
+      "title": "ProjectRole",
+      "type": "string"
+    },
+    "RevisionDecision": {
+      "description": "Approval state for a proposed goal change.",
+      "enum": [
+        "PENDING",
+        "APPROVED",
+        "REJECTED"
+      ],
+      "title": "RevisionDecision",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Explicit proposal to change a locked task scope.",
+  "properties": {
+    "base_revision": {
+      "minimum": 0,
+      "title": "Base Revision",
+      "type": "integer"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "decided_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Decided At"
+    },
+    "decided_by": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Decided By"
+    },
+    "decision": {
+      "$ref": "#/$defs/RevisionDecision",
+      "default": "PENDING"
+    },
+    "proposed_changes": {
+      "additionalProperties": true,
+      "title": "Proposed Changes",
+      "type": "object"
+    },
+    "rationale": {
+      "minLength": 1,
+      "title": "Rationale",
+      "type": "string"
+    },
+    "requested_by": {
+      "$ref": "#/$defs/ProjectRole"
+    },
+    "revision_id": {
+      "title": "Revision Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "goal-revision.v1",
+      "default": "goal-revision.v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "task_id": {
+      "title": "Task Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "revision_id",
+    "task_id",
+    "base_revision",
+    "rationale",
+    "proposed_changes",
+    "requested_by"
+  ],
+  "title": "GoalRevision",
+  "type": "object"
+}

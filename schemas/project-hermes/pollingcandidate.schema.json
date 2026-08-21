@@ -1,0 +1,119 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "author": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Author"
+    },
+    "body": {
+      "default": "",
+      "title": "Body",
+      "type": "string"
+    },
+    "candidate_id": {
+      "title": "Candidate Id",
+      "type": "string"
+    },
+    "comments": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Comments",
+      "type": "integer"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "eligible": {
+      "title": "Eligible",
+      "type": "boolean"
+    },
+    "evidence_score": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Evidence Score",
+      "type": "integer"
+    },
+    "filter_reasons": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Filter Reasons",
+      "type": "array"
+    },
+    "first_seen_at": {
+      "format": "date-time",
+      "title": "First Seen At",
+      "type": "string"
+    },
+    "issue_number": {
+      "minimum": 1,
+      "title": "Issue Number",
+      "type": "integer"
+    },
+    "issue_url": {
+      "title": "Issue Url",
+      "type": "string"
+    },
+    "labels": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Labels",
+      "type": "array"
+    },
+    "last_seen_at": {
+      "format": "date-time",
+      "title": "Last Seen At",
+      "type": "string"
+    },
+    "latest_run_id": {
+      "title": "Latest Run Id",
+      "type": "string"
+    },
+    "repository": {
+      "title": "Repository",
+      "type": "string"
+    },
+    "repository_id": {
+      "minimum": 1,
+      "title": "Repository Id",
+      "type": "integer"
+    },
+    "title": {
+      "minLength": 1,
+      "title": "Title",
+      "type": "string"
+    },
+    "updated_at": {
+      "format": "date-time",
+      "title": "Updated At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "candidate_id",
+    "repository_id",
+    "repository",
+    "issue_number",
+    "issue_url",
+    "title",
+    "eligible",
+    "created_at",
+    "updated_at",
+    "first_seen_at",
+    "last_seen_at",
+    "latest_run_id"
+  ],
+  "title": "PollingCandidate",
+  "type": "object"
+}

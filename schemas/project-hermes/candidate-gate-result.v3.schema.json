@@ -1,0 +1,57 @@
+{
+  "additionalProperties": false,
+  "description": "Combined completion and mandatory-review gate.",
+  "properties": {
+    "approved": {
+      "title": "Approved",
+      "type": "boolean"
+    },
+    "code_diff_sha": {
+      "title": "Code Diff Sha",
+      "type": "string"
+    },
+    "goal_revision": {
+      "title": "Goal Revision",
+      "type": "integer"
+    },
+    "reasons": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Reasons",
+      "type": "array"
+    },
+    "repository_bases": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Repository Bases",
+      "type": "object"
+    },
+    "repository_diff_shas": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Repository Diff Shas",
+      "type": "object"
+    },
+    "schema_version": {
+      "const": "candidate-gate-result.v3",
+      "default": "candidate-gate-result.v3",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "task_id": {
+      "title": "Task Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "task_id",
+    "code_diff_sha",
+    "goal_revision",
+    "approved"
+  ],
+  "title": "CandidateGateResult",
+  "type": "object"
+}

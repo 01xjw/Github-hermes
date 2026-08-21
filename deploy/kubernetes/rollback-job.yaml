@@ -1,0 +1,140 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: project-hermes-rollback
+  namespace: project-hermes-jobs
+  labels:
+    app.kubernetes.io/name: project-hermes-rollback
+    app.kubernetes.io/part-of: project-hermes
+  annotations:
+    project-hermes.io/release-digest: "@PROJECT_HERMES_ROLLBACK_DIGEST@"
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 300
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: project-hermes-rollback
+        app.kubernetes.io/part-of: project-hermes
+      annotations:
+        project-hermes.io/release-digest: "@PROJECT_HERMES_ROLLBACK_DIGEST@"
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      restartPolicy: Never
+      nodeSelector:
+        kubernetes.io/hostname: wx-k8s-test-s-002
+      tolerations:
+        - key: amd-oneclick.io/memory-tier
+          operator: Equal
+          value: high
+          effect: NoSchedule
+      containers:
+        - name: rollback
+          image: "@PROJECT_HERMES_RUNTIME_IMAGE@"
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/bash
+            - -lc
+          args:
+            - |
+              set -euo pipefail
+              readonly target_digest="@PROJECT_HERMES_ROLLBACK_DIGEST@"
+              readonly root="${PROJECT_HERMES_ROLLBACK_ROOT:-/app/project-hermes}"
+              readonly delivery="${root}/releases"
+              readonly state="${root}/state"
+              readonly python_bin="${PROJECT_HERMES_ROLLBACK_PYTHON:-/opt/venv/bin/python}"
+              target="releases/${target_digest}"
+              retained="$(readlink "${delivery}/previous" || true)"
+              if [ ! -d "${delivery}/${target}" ]; then
+                echo "retained rollback release is missing" >&2
+                exit 66
+              fi
+              if [ "$(
+                sha256sum \
+                  "${delivery}/${target}/release-manifest.json" |
+                  awk '{print $1}'
+              )" != "${target_digest}" ]; then
+                echo "retained rollback release failed verification" >&2
+                exit 65
+              fi
+
+              current="$(readlink "${delivery}/current" || true)"
+              if [ -z "${current}" ] ||
+                 [ ! -d "${delivery}/${current}" ]; then
+                echo "active release link is invalid" >&2
+                exit 66
+              fi
+              if [ "${current}" = "${target}" ]; then
+                # A prior attempt may have atomically switched both links and
+                # then failed while writing the state record. Treat that exact
+                # partial state as resumable instead of flipping the links a
+                # second time.
+                if [ -z "${retained}" ] ||
+                   [ "${retained}" = "${target}" ] ||
+                   [ ! -d "${delivery}/${retained}" ]; then
+                  echo "partial rollback previous link is invalid" >&2
+                  exit 66
+                fi
+                current_digest="${retained#releases/}"
+              else
+                if [ "${retained}" != "${target}" ]; then
+                  echo "rollback target is not the retained previous release" >&2
+                  exit 65
+                fi
+                current_digest="${current#releases/}"
+                ln -s "${current}" "${delivery}/previous.next"
+                mv -Tf "${delivery}/previous.next" "${delivery}/previous"
+                ln -s "${target}" "${delivery}/current.next"
+                mv -Tf "${delivery}/current.next" "${delivery}/current"
+              fi
+
+              ACTIVE_RELEASE="${target_digest}" \
+              PREVIOUS_RELEASE="${current_digest}" \
+              PROJECT_HERMES_RELEASE_STATE="${state}/hermes/release.json" \
+                "${python_bin}" - <<'PY'
+              import json
+              import os
+              from datetime import datetime, timezone
+              from pathlib import Path
+
+              destination = Path(os.environ["PROJECT_HERMES_RELEASE_STATE"])
+              record = {
+                  "schema_version": "project-hermes-active-release.v1",
+                  "active_release_digest": os.environ["ACTIVE_RELEASE"],
+                  "previous_release_digest": os.environ["PREVIOUS_RELEASE"],
+                  "activated_at": datetime.now(timezone.utc).isoformat(),
+              }
+              temporary = destination.with_suffix(".tmp")
+              temporary.write_text(
+                  json.dumps(
+                      record,
+                      sort_keys=True,
+                      separators=(",", ":"),
+                  )
+                  + "\n",
+                  encoding="utf-8",
+              )
+              temporary.replace(destination)
+              PY
+              echo "Rolled back ProjectHermes to ${target_digest}"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            privileged: false
+          volumeMounts:
+            - name: workspace
+              mountPath: /app/project-hermes
+      volumes:
+        - name: workspace
+          persistentVolumeClaim:
+            claimName: github-agent-workspace

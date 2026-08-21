@@ -1,0 +1,79 @@
+{
+  "$defs": {
+    "CiAttribution": {
+      "description": "Independent causal classification for a non-successful check.",
+      "enum": [
+        "related",
+        "flake",
+        "main_regression",
+        "unknown"
+      ],
+      "title": "CiAttribution",
+      "type": "string"
+    },
+    "CiConclusion": {
+      "description": "Normalized CI conclusion.",
+      "enum": [
+        "pending",
+        "success",
+        "failure",
+        "cancelled",
+        "skipped"
+      ],
+      "title": "CiConclusion",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "One check run tied to the candidate head.",
+  "properties": {
+    "attribution": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CiAttribution"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "check_name": {
+      "title": "Check Name",
+      "type": "string"
+    },
+    "conclusion": {
+      "$ref": "#/$defs/CiConclusion"
+    },
+    "evidence_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Evidence Ids",
+      "type": "array"
+    },
+    "head_sha": {
+      "title": "Head Sha",
+      "type": "string"
+    },
+    "investigator_session_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Investigator Session Id"
+    }
+  },
+  "required": [
+    "check_name",
+    "head_sha",
+    "conclusion"
+  ],
+  "title": "CiCheckRecord",
+  "type": "object"
+}

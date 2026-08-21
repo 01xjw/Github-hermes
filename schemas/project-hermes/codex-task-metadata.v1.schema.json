@@ -1,0 +1,199 @@
+{
+  "$defs": {
+    "ModelReasoningMode": {
+      "description": "Auditable reasoning behavior requested from a model provider.",
+      "enum": [
+        "provider_default",
+        "adaptive",
+        "disabled"
+      ],
+      "title": "ModelReasoningMode",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Durable task-to-thread mapping used for restart resume.",
+  "properties": {
+    "active_turn_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Active Turn Id"
+    },
+    "cli_version": {
+      "title": "Cli Version",
+      "type": "string"
+    },
+    "codex_home": {
+      "title": "Codex Home",
+      "type": "string"
+    },
+    "context_window": {
+      "anyOf": [
+        {
+          "maximum": 10000000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Context Window"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "last_error": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Last Error"
+    },
+    "model": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Model"
+    },
+    "model_profile": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Model Profile"
+    },
+    "model_provider": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Model Provider"
+    },
+    "pid": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Pid"
+    },
+    "reasoning_effort": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Reasoning Effort"
+    },
+    "reasoning_mode": {
+      "$ref": "#/$defs/ModelReasoningMode",
+      "default": "provider_default"
+    },
+    "root_thread_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Root Thread Id"
+    },
+    "runtime_generation": {
+      "default": 0,
+      "maximum": 1,
+      "minimum": 0,
+      "title": "Runtime Generation",
+      "type": "integer"
+    },
+    "schema_version": {
+      "const": "codex-task-metadata.v1",
+      "default": "codex-task-metadata.v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "sdk_version": {
+      "title": "Sdk Version",
+      "type": "string"
+    },
+    "session_id": {
+      "title": "Session Id",
+      "type": "string"
+    },
+    "socket_path": {
+      "title": "Socket Path",
+      "type": "string"
+    },
+    "status": {
+      "default": "STARTING",
+      "title": "Status",
+      "type": "string"
+    },
+    "task_id": {
+      "title": "Task Id",
+      "type": "string"
+    },
+    "updated_at": {
+      "format": "date-time",
+      "title": "Updated At",
+      "type": "string"
+    },
+    "worktree_path": {
+      "title": "Worktree Path",
+      "type": "string"
+    }
+  },
+  "required": [
+    "task_id",
+    "session_id",
+    "sdk_version",
+    "cli_version",
+    "socket_path",
+    "codex_home",
+    "worktree_path"
+  ],
+  "title": "CodexTaskMetadata",
+  "type": "object"
+}

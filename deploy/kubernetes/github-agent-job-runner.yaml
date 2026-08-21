@@ -1,0 +1,282 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: project-hermes-jobs
+  labels:
+    app.kubernetes.io/part-of: project-hermes
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/audit-version: latest
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/warn-version: latest
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: project-hermes-controller
+  namespace: project-hermes-jobs
+  labels:
+    app.kubernetes.io/part-of: project-hermes
+automountServiceAccountToken: true
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: project-hermes-job
+  namespace: project-hermes-jobs
+  labels:
+    app.kubernetes.io/part-of: project-hermes
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: project-hermes-job-controller
+  namespace: project-hermes-jobs
+  labels:
+    app.kubernetes.io/part-of: project-hermes
+rules:
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["create", "get", "list", "watch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["networkpolicies"]
+    verbs: ["create", "get", "list", "watch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: project-hermes-job-controller
+  namespace: project-hermes-jobs
+  labels:
+    app.kubernetes.io/part-of: project-hermes
+subjects:
+  - kind: ServiceAccount
+    name: project-hermes-controller
+    namespace: project-hermes-jobs
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: project-hermes-job-controller
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: project-hermes-job-budget
+  namespace: project-hermes-jobs
+  labels:
+    app.kubernetes.io/part-of: project-hermes
+spec:
+  hard:
+    count/jobs.batch: "14"
+    requests.amd.com/gpu: "6"
+    limits.amd.com/gpu: "6"
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: deny-unapproved-job-egress
+  namespace: project-hermes-jobs
+  labels:
+    app.kubernetes.io/part-of: project-hermes
+spec:
+  podSelector:
+    matchLabels:
+      project-hermes.io/network-access: denied
+  policyTypes:
+    - Egress
+  egress: []
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: github-agent-workspace
+  namespace: project-hermes-jobs
+  labels:
+    app.kubernetes.io/name: github-agent
+    app.kubernetes.io/part-of: project-hermes
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: oneclick-model-nfs-1
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: project-hermes-model-proxy
+  namespace: project-hermes-jobs
+  labels:
+    app.kubernetes.io/name: project-hermes-model-proxy
+    app.kubernetes.io/part-of: project-hermes
+  annotations:
+    project-hermes.io/release-digest: "@PROJECT_HERMES_RELEASE_DIGEST@"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: project-hermes-model-proxy
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: project-hermes-model-proxy
+        app.kubernetes.io/part-of: project-hermes
+      annotations:
+        project-hermes.io/release-digest: "@PROJECT_HERMES_RELEASE_DIGEST@"
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      terminationGracePeriodSeconds: 30
+      nodeSelector:
+        kubernetes.io/hostname: wx-k8s-test-s-002
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: connect-proxy
+          image: "@PROJECT_HERMES_RUNTIME_IMAGE@"
+          imagePullPolicy: IfNotPresent
+          command:
+            - /opt/venv/bin/python
+            - /release/worker/connect-proxy.py
+          env:
+            - name: PROJECT_HERMES_PROXY_PORT
+              value: "3128"
+            - name: PROJECT_HERMES_ALLOWED_MODEL_HOSTS
+              value: api.deepseek.com
+            - name: PYTHONDONTWRITEBYTECODE
+              value: "1"
+          ports:
+            - name: connect
+              containerPort: 3128
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          readinessProbe:
+            tcpSocket:
+              port: connect
+            periodSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            tcpSocket:
+              port: connect
+            periodSeconds: 15
+            failureThreshold: 4
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            privileged: false
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - name: release
+              mountPath: /release
+              subPath: >-
+                releases/releases/@PROJECT_HERMES_RELEASE_DIGEST@
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: release
+          persistentVolumeClaim:
+            claimName: github-agent-workspace
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: project-hermes-model-proxy
+  namespace: project-hermes-jobs
+  labels:
+    app.kubernetes.io/name: project-hermes-model-proxy
+    app.kubernetes.io/part-of: project-hermes
+spec:
+  selector:
+    app.kubernetes.io/name: project-hermes-model-proxy
+  ports:
+    - name: connect
+      port: 3128
+      targetPort: connect
+      protocol: TCP
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: project-hermes-model-proxy-ingress
+  namespace: project-hermes-jobs
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: project-hermes-model-proxy
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              project-hermes.io/worker-kind: codex-issue
+      ports:
+        - protocol: TCP
+          port: 3128
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: project-hermes-model-proxy-egress
+  namespace: project-hermes-jobs
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: project-hermes-model-proxy
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 0.0.0.0/8
+              - 10.0.0.0/8
+              - 100.64.0.0/10
+              - 127.0.0.0/8
+              - 169.254.0.0/16
+              - 172.16.0.0/12
+              - 192.0.0.0/24
+              - 192.168.0.0/16
+              - 198.18.0.0/15
+              - 224.0.0.0/4
+              - 240.0.0.0/4
+      ports:
+        - protocol: TCP
+          port: 443

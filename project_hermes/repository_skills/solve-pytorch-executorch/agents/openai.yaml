@@ -1,0 +1,4 @@
+interface:
+  display_name: "ExecuTorch Issue Solver"
+  short_description: "Resolve ExecuTorch export and runtime Issues"
+  default_prompt: "Use $solve-pytorch-executorch to solve the locked repository Issue."

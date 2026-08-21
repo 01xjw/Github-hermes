@@ -1,0 +1,56 @@
+{
+  "additionalProperties": false,
+  "description": "One logical image mapped to upstream and internal identities.",
+  "properties": {
+    "expected_manifest_digest": {
+      "title": "Expected Manifest Digest",
+      "type": "string"
+    },
+    "internal_ref": {
+      "title": "Internal Ref",
+      "type": "string"
+    },
+    "logical_name": {
+      "title": "Logical Name",
+      "type": "string"
+    },
+    "platform": {
+      "title": "Platform",
+      "type": "string"
+    },
+    "relay_id": {
+      "title": "Relay Id",
+      "type": "string"
+    },
+    "require_sbom": {
+      "default": true,
+      "title": "Require Sbom",
+      "type": "boolean"
+    },
+    "require_vulnerability_scan": {
+      "default": true,
+      "title": "Require Vulnerability Scan",
+      "type": "boolean"
+    },
+    "schema_version": {
+      "const": "image-source-map.v1",
+      "default": "image-source-map.v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "source_ref": {
+      "title": "Source Ref",
+      "type": "string"
+    }
+  },
+  "required": [
+    "logical_name",
+    "source_ref",
+    "platform",
+    "expected_manifest_digest",
+    "internal_ref",
+    "relay_id"
+  ],
+  "title": "ImageSourceMap",
+  "type": "object"
+}

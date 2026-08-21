@@ -1,0 +1,198 @@
+{
+  "$defs": {
+    "CompletionLayer": {
+      "description": "The nine independently auditable completion layers.",
+      "enum": [
+        "implemented",
+        "gate_verified",
+        "operator_correct",
+        "operator_perf",
+        "serving_selected",
+        "serving_executed",
+        "final_e2e",
+        "packaged",
+        "ci_reviewed"
+      ],
+      "title": "CompletionLayer",
+      "type": "string"
+    },
+    "ProjectRole": {
+      "description": "Security identities recognized by the control plane.",
+      "enum": [
+        "control_plane",
+        "campaign_hermes",
+        "project_hermes",
+        "codex",
+        "runner",
+        "reviewer",
+        "curator",
+        "operator"
+      ],
+      "title": "ProjectRole",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Immutable evidence bound to exact code, goal, and environment.",
+  "properties": {
+    "artifact_digests": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Artifact Digests",
+      "type": "array"
+    },
+    "base_sha": {
+      "title": "Base Sha",
+      "type": "string"
+    },
+    "code_diff_sha": {
+      "title": "Code Diff Sha",
+      "type": "string"
+    },
+    "command": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Command",
+      "type": "array"
+    },
+    "completion_layer": {
+      "$ref": "#/$defs/CompletionLayer"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "dependency_versions": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Dependency Versions",
+      "type": "object"
+    },
+    "environment": {
+      "additionalProperties": true,
+      "title": "Environment",
+      "type": "object"
+    },
+    "evidence_id": {
+      "title": "Evidence Id",
+      "type": "string"
+    },
+    "goal_revision": {
+      "minimum": 0,
+      "title": "Goal Revision",
+      "type": "integer"
+    },
+    "hardware": {
+      "additionalProperties": true,
+      "title": "Hardware",
+      "type": "object"
+    },
+    "image_digest": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Image Digest"
+    },
+    "log_refs": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Log Refs",
+      "type": "array"
+    },
+    "named_baseline": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Named Baseline"
+    },
+    "node_id": {
+      "title": "Node Id",
+      "type": "string"
+    },
+    "path_id": {
+      "title": "Path Id",
+      "type": "string"
+    },
+    "producer_role": {
+      "$ref": "#/$defs/ProjectRole"
+    },
+    "reference": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Reference"
+    },
+    "repository": {
+      "title": "Repository",
+      "type": "string"
+    },
+    "result": {
+      "additionalProperties": true,
+      "title": "Result",
+      "type": "object"
+    },
+    "schema_version": {
+      "const": "evidence-record.v3",
+      "default": "evidence-record.v3",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "task_id": {
+      "title": "Task Id",
+      "type": "string"
+    },
+    "tolerance": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Tolerance"
+    }
+  },
+  "required": [
+    "evidence_id",
+    "task_id",
+    "node_id",
+    "path_id",
+    "repository",
+    "completion_layer",
+    "producer_role",
+    "base_sha",
+    "code_diff_sha",
+    "goal_revision",
+    "environment",
+    "command",
+    "result"
+  ],
+  "title": "EvidenceRecord",
+  "type": "object"
+}

@@ -1,0 +1,108 @@
+{
+  "$defs": {
+    "PollingRunStatus": {
+      "enum": [
+        "running",
+        "completed",
+        "partial",
+        "failed"
+      ],
+      "title": "PollingRunStatus",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "candidates_matched": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Candidates Matched",
+      "type": "integer"
+    },
+    "completed_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Completed At"
+    },
+    "cutoff": {
+      "format": "date-time",
+      "title": "Cutoff",
+      "type": "string"
+    },
+    "error": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Error"
+    },
+    "issues_seen": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Issues Seen",
+      "type": "integer"
+    },
+    "repositories_failed": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Repositories Failed",
+      "type": "integer"
+    },
+    "repositories_requested": {
+      "minimum": 0,
+      "title": "Repositories Requested",
+      "type": "integer"
+    },
+    "repositories_scanned": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Repositories Scanned",
+      "type": "integer"
+    },
+    "run_id": {
+      "title": "Run Id",
+      "type": "string"
+    },
+    "started_at": {
+      "format": "date-time",
+      "title": "Started At",
+      "type": "string"
+    },
+    "status": {
+      "$ref": "#/$defs/PollingRunStatus"
+    },
+    "task_id": {
+      "default": "github-issue-polling",
+      "title": "Task Id",
+      "type": "string"
+    },
+    "work_items_queued": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Work Items Queued",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "run_id",
+    "status",
+    "cutoff",
+    "repositories_requested",
+    "started_at"
+  ],
+  "title": "PollingRun",
+  "type": "object"
+}

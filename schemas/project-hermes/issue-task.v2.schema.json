@@ -1,0 +1,355 @@
+{
+  "$defs": {
+    "GoalPath": {
+      "additionalProperties": false,
+      "description": "One independently verifiable path in the locked task scope.",
+      "properties": {
+        "acceptance_criteria": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Acceptance Criteria",
+          "type": "array"
+        },
+        "description": {
+          "minLength": 1,
+          "title": "Description",
+          "type": "string"
+        },
+        "path_id": {
+          "title": "Path Id",
+          "type": "string"
+        },
+        "repository": {
+          "title": "Repository",
+          "type": "string"
+        },
+        "required_completion_layers": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Required Completion Layers",
+          "type": "array"
+        }
+      },
+      "required": [
+        "path_id",
+        "description",
+        "repository",
+        "acceptance_criteria",
+        "required_completion_layers"
+      ],
+      "title": "GoalPath",
+      "type": "object"
+    },
+    "PermissionBudget": {
+      "additionalProperties": false,
+      "description": "Explicit authority available to a project task.",
+      "properties": {
+        "may_access_network": {
+          "default": false,
+          "title": "May Access Network",
+          "type": "boolean"
+        },
+        "may_publish": {
+          "default": false,
+          "title": "May Publish",
+          "type": "boolean"
+        },
+        "may_request_execution": {
+          "default": true,
+          "title": "May Request Execution",
+          "type": "boolean"
+        },
+        "may_request_review": {
+          "default": true,
+          "title": "May Request Review",
+          "type": "boolean"
+        },
+        "readable_repositories": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Readable Repositories",
+          "type": "array"
+        },
+        "writable_repositories": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Writable Repositories",
+          "type": "array"
+        }
+      },
+      "required": [
+        "readable_repositories"
+      ],
+      "title": "PermissionBudget",
+      "type": "object"
+    },
+    "RepositoryResponsibility": {
+      "additionalProperties": false,
+      "description": "Ownership and dependency boundary for one repository.",
+      "properties": {
+        "depends_on": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Depends On",
+          "type": "array"
+        },
+        "pull_request_order": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Pull Request Order",
+          "type": "integer"
+        },
+        "repository": {
+          "title": "Repository",
+          "type": "string"
+        },
+        "responsibilities": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Responsibilities",
+          "type": "array"
+        },
+        "schema_version": {
+          "const": "repo-responsibility.v1",
+          "default": "repo-responsibility.v1",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "repository",
+        "responsibilities"
+      ],
+      "title": "RepositoryResponsibility",
+      "type": "object"
+    },
+    "ResourceLimits": {
+      "additionalProperties": false,
+      "description": "Hard task limits fixed by the goal contract.",
+      "properties": {
+        "max_artifact_bytes": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Artifact Bytes"
+        },
+        "max_gpu_count": {
+          "default": 8,
+          "maximum": 8,
+          "minimum": 0,
+          "title": "Max Gpu Count",
+          "type": "integer"
+        },
+        "max_model_concurrency": {
+          "default": 7,
+          "maximum": 128,
+          "minimum": 1,
+          "title": "Max Model Concurrency",
+          "type": "integer"
+        },
+        "max_parallel_nodes": {
+          "default": 7,
+          "maximum": 128,
+          "minimum": 1,
+          "title": "Max Parallel Nodes",
+          "type": "integer"
+        }
+      },
+      "title": "ResourceLimits",
+      "type": "object"
+    },
+    "TargetHardware": {
+      "additionalProperties": false,
+      "description": "Hardware requirements that affect acceptance evidence.",
+      "properties": {
+        "environment_name": {
+          "title": "Environment Name",
+          "type": "string"
+        },
+        "gpu_architectures": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Gpu Architectures",
+          "type": "array"
+        },
+        "minimum_gpu_count": {
+          "default": 0,
+          "maximum": 8,
+          "minimum": 0,
+          "title": "Minimum Gpu Count",
+          "type": "integer"
+        },
+        "topology": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Topology"
+        }
+      },
+      "required": [
+        "environment_name"
+      ],
+      "title": "TargetHardware",
+      "type": "object"
+    },
+    "TriageDecision": {
+      "description": "Independent issue-triage outcomes.",
+      "enum": [
+        "APPROVE",
+        "REJECT",
+        "NEEDS_EVIDENCE",
+        "DUPLICATE",
+        "OBSOLETE"
+      ],
+      "title": "TriageDecision",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Locked execution scope created after independent triage.",
+  "properties": {
+    "campaign_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Campaign Id"
+    },
+    "goals": {
+      "items": {
+        "$ref": "#/$defs/GoalPath"
+      },
+      "minItems": 1,
+      "title": "Goals",
+      "type": "array"
+    },
+    "issue_urls": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Issue Urls",
+      "type": "array"
+    },
+    "locked_at": {
+      "format": "date-time",
+      "title": "Locked At",
+      "type": "string"
+    },
+    "metadata": {
+      "additionalProperties": true,
+      "title": "Metadata",
+      "type": "object"
+    },
+    "must_preserve": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Must Preserve",
+      "type": "array"
+    },
+    "named_baseline": {
+      "minLength": 1,
+      "title": "Named Baseline",
+      "type": "string"
+    },
+    "non_goals": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Non Goals",
+      "type": "array"
+    },
+    "permissions": {
+      "$ref": "#/$defs/PermissionBudget"
+    },
+    "repositories": {
+      "items": {
+        "$ref": "#/$defs/RepositoryResponsibility"
+      },
+      "minItems": 1,
+      "title": "Repositories",
+      "type": "array"
+    },
+    "required_ci_checks": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Required Ci Checks",
+      "type": "array"
+    },
+    "resource_limits": {
+      "$ref": "#/$defs/ResourceLimits"
+    },
+    "revision": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Revision",
+      "type": "integer"
+    },
+    "schema_version": {
+      "const": "issue-task.v2",
+      "default": "issue-task.v2",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "target_hardware": {
+      "$ref": "#/$defs/TargetHardware"
+    },
+    "task_id": {
+      "title": "Task Id",
+      "type": "string"
+    },
+    "triage_decision": {
+      "$ref": "#/$defs/TriageDecision"
+    },
+    "triage_evidence_refs": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Triage Evidence Refs",
+      "type": "array"
+    }
+  },
+  "required": [
+    "task_id",
+    "issue_urls",
+    "named_baseline",
+    "goals",
+    "repositories",
+    "target_hardware",
+    "permissions",
+    "triage_decision"
+  ],
+  "title": "IssueTask",
+  "type": "object"
+}

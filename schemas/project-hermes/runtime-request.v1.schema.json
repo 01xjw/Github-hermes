@@ -1,0 +1,219 @@
+{
+  "$defs": {
+    "ModelReasoningMode": {
+      "description": "Auditable reasoning behavior requested from a model provider.",
+      "enum": [
+        "provider_default",
+        "adaptive",
+        "disabled"
+      ],
+      "title": "ModelReasoningMode",
+      "type": "string"
+    },
+    "ProjectRole": {
+      "description": "Security identities recognized by the control plane.",
+      "enum": [
+        "control_plane",
+        "campaign_hermes",
+        "project_hermes",
+        "codex",
+        "runner",
+        "reviewer",
+        "curator",
+        "operator"
+      ],
+      "title": "ProjectRole",
+      "type": "string"
+    },
+    "RuntimeModelRoute": {
+      "additionalProperties": false,
+      "description": "Resolved, credential-free model identity for one runtime session.",
+      "properties": {
+        "context_window": {
+          "anyOf": [
+            {
+              "maximum": 10000000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Context Window"
+        },
+        "model": {
+          "title": "Model",
+          "type": "string"
+        },
+        "model_provider": {
+          "title": "Model Provider",
+          "type": "string"
+        },
+        "profile": {
+          "title": "Profile",
+          "type": "string"
+        },
+        "provider_api_key_env": {
+          "title": "Provider Api Key Env",
+          "type": "string"
+        },
+        "provider_endpoint": {
+          "title": "Provider Endpoint",
+          "type": "string"
+        },
+        "provider_wire_api": {
+          "enum": [
+            "responses",
+            "chat"
+          ],
+          "title": "Provider Wire Api",
+          "type": "string"
+        },
+        "reasoning_effort": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reasoning Effort"
+        },
+        "reasoning_mode": {
+          "$ref": "#/$defs/ModelReasoningMode",
+          "default": "provider_default"
+        },
+        "schema_version": {
+          "const": "runtime-model-route.v1",
+          "default": "runtime-model-route.v1",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "profile",
+        "model",
+        "model_provider",
+        "provider_endpoint",
+        "provider_api_key_env",
+        "provider_wire_api"
+      ],
+      "title": "RuntimeModelRoute",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Framework-neutral request to start or resume an agent.",
+  "properties": {
+    "context": {
+      "additionalProperties": true,
+      "title": "Context",
+      "type": "object"
+    },
+    "cwd": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Cwd"
+    },
+    "metadata": {
+      "additionalProperties": true,
+      "title": "Metadata",
+      "type": "object"
+    },
+    "model": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Model"
+    },
+    "model_route": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/RuntimeModelRoute"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "prompt": {
+      "title": "Prompt",
+      "type": "string"
+    },
+    "request_id": {
+      "title": "Request Id",
+      "type": "string"
+    },
+    "review_cycle": {
+      "anyOf": [
+        {
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Review Cycle"
+    },
+    "role": {
+      "$ref": "#/$defs/ProjectRole"
+    },
+    "runtime_generation": {
+      "default": 0,
+      "maximum": 1,
+      "minimum": 0,
+      "title": "Runtime Generation",
+      "type": "integer"
+    },
+    "schema_version": {
+      "const": "runtime-request.v1",
+      "default": "runtime-request.v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "session_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Session Id"
+    },
+    "task_id": {
+      "title": "Task Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "request_id",
+    "task_id",
+    "role",
+    "prompt"
+  ],
+  "title": "RuntimeRequest",
+  "type": "object"
+}

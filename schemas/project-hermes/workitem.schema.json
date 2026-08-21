@@ -1,0 +1,388 @@
+{
+  "$defs": {
+    "EnvironmentStatus": {
+      "enum": [
+        "pending",
+        "verified",
+        "failed"
+      ],
+      "title": "EnvironmentStatus",
+      "type": "string"
+    },
+    "WorkPlan": {
+      "additionalProperties": false,
+      "properties": {
+        "acceptance_criteria": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 20,
+          "minItems": 1,
+          "title": "Acceptance Criteria",
+          "type": "array"
+        },
+        "risks": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 20,
+          "title": "Risks",
+          "type": "array"
+        },
+        "steps": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 20,
+          "minItems": 1,
+          "title": "Steps",
+          "type": "array"
+        },
+        "summary": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "title": "Summary",
+          "type": "string"
+        }
+      },
+      "required": [
+        "summary",
+        "steps",
+        "acceptance_criteria"
+      ],
+      "title": "WorkPlan",
+      "type": "object"
+    },
+    "WorkResourceRequirements": {
+      "additionalProperties": false,
+      "properties": {
+        "cpu_limit": {
+          "title": "Cpu Limit",
+          "type": "string"
+        },
+        "cpu_request": {
+          "title": "Cpu Request",
+          "type": "string"
+        },
+        "execution_environment": {
+          "const": "kubernetes",
+          "default": "kubernetes",
+          "title": "Execution Environment",
+          "type": "string"
+        },
+        "gpu_architecture": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Gpu Architecture"
+        },
+        "gpu_count": {
+          "maximum": 8,
+          "minimum": 0,
+          "title": "Gpu Count",
+          "type": "integer"
+        },
+        "memory_limit": {
+          "title": "Memory Limit",
+          "type": "string"
+        },
+        "memory_request": {
+          "title": "Memory Request",
+          "type": "string"
+        },
+        "worker_model": {
+          "title": "Worker Model",
+          "type": "string"
+        }
+      },
+      "required": [
+        "cpu_request",
+        "cpu_limit",
+        "memory_request",
+        "memory_limit",
+        "gpu_count",
+        "worker_model"
+      ],
+      "title": "WorkResourceRequirements",
+      "type": "object"
+    },
+    "WorkStatus": {
+      "enum": [
+        "queued",
+        "planning",
+        "running",
+        "review",
+        "done",
+        "blocked",
+        "failed"
+      ],
+      "title": "WorkStatus",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "blocked_reason": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Blocked Reason"
+    },
+    "candidate_id": {
+      "title": "Candidate Id",
+      "type": "string"
+    },
+    "completed_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Completed At"
+    },
+    "current_step": {
+      "title": "Current Step",
+      "type": "string"
+    },
+    "environment_status": {
+      "$ref": "#/$defs/EnvironmentStatus",
+      "default": "pending"
+    },
+    "environment_verified_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Environment Verified At"
+    },
+    "execution_attempt": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Execution Attempt",
+      "type": "integer"
+    },
+    "execution_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Execution Id"
+    },
+    "internal_candidate_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Internal Candidate Id"
+    },
+    "issue_number": {
+      "minimum": 1,
+      "title": "Issue Number",
+      "type": "integer"
+    },
+    "issue_url": {
+      "title": "Issue Url",
+      "type": "string"
+    },
+    "last_error": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Last Error"
+    },
+    "named_baseline": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Named Baseline"
+    },
+    "plan": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/WorkPlan"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "planning_started_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Planning Started At"
+    },
+    "queued_at": {
+      "format": "date-time",
+      "title": "Queued At",
+      "type": "string"
+    },
+    "repository": {
+      "title": "Repository",
+      "type": "string"
+    },
+    "repository_id": {
+      "minimum": 1,
+      "title": "Repository Id",
+      "type": "integer"
+    },
+    "resource_requirements": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/WorkResourceRequirements"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "retry_not_before": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Retry Not Before"
+    },
+    "review_started_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Review Started At"
+    },
+    "run_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Run Id"
+    },
+    "started_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Started At"
+    },
+    "status": {
+      "$ref": "#/$defs/WorkStatus"
+    },
+    "task_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Task Id"
+    },
+    "title": {
+      "title": "Title",
+      "type": "string"
+    },
+    "updated_at": {
+      "format": "date-time",
+      "title": "Updated At",
+      "type": "string"
+    },
+    "work_item_id": {
+      "title": "Work Item Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "work_item_id",
+    "candidate_id",
+    "repository_id",
+    "repository",
+    "issue_number",
+    "issue_url",
+    "title",
+    "status",
+    "current_step",
+    "queued_at",
+    "updated_at"
+  ],
+  "title": "WorkItem",
+  "type": "object"
+}

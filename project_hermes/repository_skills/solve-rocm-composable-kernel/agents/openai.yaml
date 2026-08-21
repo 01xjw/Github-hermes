@@ -1,0 +1,4 @@
+interface:
+  display_name: "Composable Kernel Issue Solver"
+  short_description: "Resolve CK Issues and validate kernel dispatch"
+  default_prompt: "Use $solve-rocm-composable-kernel to solve the locked repository Issue."

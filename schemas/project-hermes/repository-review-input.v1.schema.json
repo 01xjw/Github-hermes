@@ -1,0 +1,51 @@
+{
+  "additionalProperties": false,
+  "description": "Frozen diff identity and location for one candidate repository.",
+  "properties": {
+    "absolute_repository_path": {
+      "title": "Absolute Repository Path",
+      "type": "string"
+    },
+    "base_sha": {
+      "title": "Base Sha",
+      "type": "string"
+    },
+    "branch": {
+      "title": "Branch",
+      "type": "string"
+    },
+    "code_diff_sha": {
+      "title": "Code Diff Sha",
+      "type": "string"
+    },
+    "complete_diff_ref": {
+      "title": "Complete Diff Ref",
+      "type": "string"
+    },
+    "includes_untracked": {
+      "title": "Includes Untracked",
+      "type": "boolean"
+    },
+    "repository": {
+      "title": "Repository",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "repository-review-input.v1",
+      "default": "repository-review-input.v1",
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "repository",
+    "absolute_repository_path",
+    "base_sha",
+    "branch",
+    "code_diff_sha",
+    "complete_diff_ref",
+    "includes_untracked"
+  ],
+  "title": "RepositoryReviewInput",
+  "type": "object"
+}

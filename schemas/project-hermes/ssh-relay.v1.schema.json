@@ -1,0 +1,82 @@
+{
+  "additionalProperties": false,
+  "description": "Administrator-owned SSH relay reference without key material.",
+  "properties": {
+    "allowed_operations": {
+      "items": {
+        "enum": [
+          "fetch_image",
+          "export_oci",
+          "fetch_model",
+          "verify",
+          "transfer",
+          "import_image",
+          "import_model"
+        ],
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Allowed Operations",
+      "type": "array"
+    },
+    "allowed_source_hosts": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Allowed Source Hosts",
+      "type": "array"
+    },
+    "credential_secret_ref": {
+      "title": "Credential Secret Ref",
+      "type": "string"
+    },
+    "host": {
+      "title": "Host",
+      "type": "string"
+    },
+    "known_hosts_file": {
+      "format": "path",
+      "title": "Known Hosts File",
+      "type": "string"
+    },
+    "port": {
+      "default": 22,
+      "maximum": 65535,
+      "minimum": 1,
+      "title": "Port",
+      "type": "integer"
+    },
+    "relay_id": {
+      "title": "Relay Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "ssh-relay.v1",
+      "default": "ssh-relay.v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "staging_root": {
+      "format": "path",
+      "title": "Staging Root",
+      "type": "string"
+    },
+    "user": {
+      "title": "User",
+      "type": "string"
+    }
+  },
+  "required": [
+    "relay_id",
+    "host",
+    "user",
+    "known_hosts_file",
+    "credential_secret_ref",
+    "staging_root",
+    "allowed_source_hosts",
+    "allowed_operations"
+  ],
+  "title": "SshRelayConfig",
+  "type": "object"
+}

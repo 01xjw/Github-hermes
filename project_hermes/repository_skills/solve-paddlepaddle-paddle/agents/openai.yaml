@@ -1,0 +1,4 @@
+interface:
+  display_name: "Paddle Issue Solver"
+  short_description: "Resolve Paddle Issues with backend-focused validation"
+  default_prompt: "Use $solve-paddlepaddle-paddle to solve the locked repository Issue."

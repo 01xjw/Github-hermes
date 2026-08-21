@@ -1,0 +1,4 @@
+interface:
+  display_name: "Diffusers Issue Solver"
+  short_description: "Resolve Diffusers Issues with pipeline-focused tests"
+  default_prompt: "Use $solve-huggingface-diffusers to solve the locked repository Issue."

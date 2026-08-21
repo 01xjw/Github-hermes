@@ -1,0 +1,4 @@
+interface:
+  display_name: "ONNX Runtime Issue Solver"
+  short_description: "Resolve ONNX Runtime Issues with provider-aware tests"
+  default_prompt: "Use $solve-microsoft-onnxruntime to solve the locked repository Issue."

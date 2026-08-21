@@ -1,0 +1,61 @@
+{
+  "$defs": {
+    "KnowledgeOutcome": {
+      "description": "Knowledge category selected from the task's terminal outcome.",
+      "enum": [
+        "positive",
+        "negative"
+      ],
+      "title": "KnowledgeOutcome",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Committed knowledge artifact that can be probed independently.",
+  "properties": {
+    "commit_id": {
+      "title": "Commit Id",
+      "type": "string"
+    },
+    "committed_at": {
+      "format": "date-time",
+      "title": "Committed At",
+      "type": "string"
+    },
+    "content_digest": {
+      "title": "Content Digest",
+      "type": "string"
+    },
+    "outcome": {
+      "$ref": "#/$defs/KnowledgeOutcome"
+    },
+    "schema_version": {
+      "const": "knowledge-commit.v1",
+      "default": "knowledge-commit.v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "storage_ref": {
+      "title": "Storage Ref",
+      "type": "string"
+    },
+    "task_id": {
+      "title": "Task Id",
+      "type": "string"
+    },
+    "validated_by": {
+      "title": "Validated By",
+      "type": "string"
+    }
+  },
+  "required": [
+    "commit_id",
+    "task_id",
+    "outcome",
+    "content_digest",
+    "storage_ref",
+    "validated_by"
+  ],
+  "title": "KnowledgeCommit",
+  "type": "object"
+}

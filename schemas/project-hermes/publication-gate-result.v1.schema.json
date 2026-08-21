@@ -1,0 +1,28 @@
+{
+  "additionalProperties": false,
+  "description": "Fail-closed publication decision.",
+  "properties": {
+    "approved": {
+      "title": "Approved",
+      "type": "boolean"
+    },
+    "reasons": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Reasons",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "publication-gate-result.v1",
+      "default": "publication-gate-result.v1",
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "approved"
+  ],
+  "title": "PublicationGateResult",
+  "type": "object"
+}

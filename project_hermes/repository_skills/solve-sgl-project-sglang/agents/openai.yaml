@@ -1,0 +1,4 @@
+interface:
+  display_name: "SGLang Issue Solver"
+  short_description: "Resolve SGLang Issues across ROCm serving paths"
+  default_prompt: "Use $solve-sgl-project-sglang to solve the locked repository Issue."

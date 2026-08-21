@@ -1,0 +1,4 @@
+interface:
+  display_name: "PyTorch Issue Solver"
+  short_description: "Resolve PyTorch Issues with focused regression tests"
+  default_prompt: "Use $solve-pytorch-pytorch to solve the locked repository Issue."

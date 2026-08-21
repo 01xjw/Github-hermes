@@ -1,0 +1,259 @@
+{
+  "$defs": {
+    "ArtifactKind": {
+      "description": "Externally supplied artifact classes.",
+      "enum": [
+        "container_image",
+        "model",
+        "dataset",
+        "archive"
+      ],
+      "title": "ArtifactKind",
+      "type": "string"
+    },
+    "ArtifactManifest": {
+      "additionalProperties": false,
+      "description": "Verified, immutable artifact identity.",
+      "properties": {
+        "byte_size": {
+          "minimum": 0,
+          "title": "Byte Size",
+          "type": "integer"
+        },
+        "kind": {
+          "$ref": "#/$defs/ArtifactKind"
+        },
+        "local_path": {
+          "title": "Local Path",
+          "type": "string"
+        },
+        "request_id": {
+          "title": "Request Id",
+          "type": "string"
+        },
+        "resolved_digest": {
+          "title": "Resolved Digest",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "artifact-manifest.v1",
+          "default": "artifact-manifest.v1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "source_uri": {
+          "title": "Source Uri",
+          "type": "string"
+        },
+        "task_id": {
+          "title": "Task Id",
+          "type": "string"
+        },
+        "verified_at": {
+          "format": "date-time",
+          "title": "Verified At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "request_id",
+        "task_id",
+        "kind",
+        "source_uri",
+        "resolved_digest",
+        "local_path",
+        "byte_size"
+      ],
+      "title": "ArtifactManifest",
+      "type": "object"
+    },
+    "GpuAllocationStatus": {
+      "description": "GPU allocation lifecycle.",
+      "enum": [
+        "ALLOCATED",
+        "TERMINATING",
+        "RELEASED"
+      ],
+      "title": "GpuAllocationStatus",
+      "type": "string"
+    },
+    "GpuLease": {
+      "additionalProperties": false,
+      "description": "Atomic GPU allocation tied to one execution object.",
+      "properties": {
+        "allocated_at": {
+          "format": "date-time",
+          "title": "Allocated At",
+          "type": "string"
+        },
+        "execution_id": {
+          "title": "Execution Id",
+          "type": "string"
+        },
+        "gpu_ids": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 8,
+          "minItems": 1,
+          "title": "Gpu Ids",
+          "type": "array"
+        },
+        "lease_id": {
+          "title": "Lease Id",
+          "type": "string"
+        },
+        "released_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Released At"
+        },
+        "request_id": {
+          "title": "Request Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "gpu-lease.v1",
+          "default": "gpu-lease.v1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/GpuAllocationStatus",
+          "default": "ALLOCATED"
+        },
+        "task_id": {
+          "title": "Task Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "lease_id",
+        "request_id",
+        "task_id",
+        "gpu_ids",
+        "execution_id"
+      ],
+      "title": "GpuLease",
+      "type": "object"
+    },
+    "WorkspaceLease": {
+      "additionalProperties": false,
+      "description": "Exclusive ownership of a task worktree.",
+      "properties": {
+        "acquired_at": {
+          "format": "date-time",
+          "title": "Acquired At",
+          "type": "string"
+        },
+        "base_sha": {
+          "title": "Base Sha",
+          "type": "string"
+        },
+        "branch_name": {
+          "title": "Branch Name",
+          "type": "string"
+        },
+        "lease_id": {
+          "title": "Lease Id",
+          "type": "string"
+        },
+        "mirror_path": {
+          "title": "Mirror Path",
+          "type": "string"
+        },
+        "owner_session_id": {
+          "title": "Owner Session Id",
+          "type": "string"
+        },
+        "released_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Released At"
+        },
+        "repository": {
+          "title": "Repository",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "workspace-lease.v1",
+          "default": "workspace-lease.v1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "task_id": {
+          "title": "Task Id",
+          "type": "string"
+        },
+        "worktree_path": {
+          "title": "Worktree Path",
+          "type": "string"
+        }
+      },
+      "required": [
+        "lease_id",
+        "task_id",
+        "repository",
+        "mirror_path",
+        "worktree_path",
+        "branch_name",
+        "base_sha",
+        "owner_session_id"
+      ],
+      "title": "WorkspaceLease",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Resources required before an execution node can start.",
+  "properties": {
+    "artifacts": {
+      "items": {
+        "$ref": "#/$defs/ArtifactManifest"
+      },
+      "title": "Artifacts",
+      "type": "array"
+    },
+    "gpu": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/GpuLease"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "schema_version": {
+      "const": "resource-bundle.v1",
+      "default": "resource-bundle.v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "workspace": {
+      "$ref": "#/$defs/WorkspaceLease"
+    }
+  },
+  "required": [
+    "workspace"
+  ],
+  "title": "ResourceBundle",
+  "type": "object"
+}

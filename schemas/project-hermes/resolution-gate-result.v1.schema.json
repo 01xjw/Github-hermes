@@ -1,0 +1,40 @@
+{
+  "additionalProperties": false,
+  "description": "Fail-closed result for one frozen review set.",
+  "properties": {
+    "approved": {
+      "title": "Approved",
+      "type": "boolean"
+    },
+    "reasons": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Reasons",
+      "type": "array"
+    },
+    "requires_fresh_review": {
+      "default": false,
+      "title": "Requires Fresh Review",
+      "type": "boolean"
+    },
+    "resolved_finding_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Resolved Finding Ids",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "resolution-gate-result.v1",
+      "default": "resolution-gate-result.v1",
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "approved"
+  ],
+  "title": "ResolutionGateResult",
+  "type": "object"
+}

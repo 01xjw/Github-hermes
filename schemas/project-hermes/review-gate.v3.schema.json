@@ -1,0 +1,280 @@
+{
+  "$defs": {
+    "FindingSeverity": {
+      "description": "Finding severity used by mandatory review gates.",
+      "enum": [
+        "INFO",
+        "LOW",
+        "MEDIUM",
+        "HIGH",
+        "CRITICAL"
+      ],
+      "title": "FindingSeverity",
+      "type": "string"
+    },
+    "ReviewFinding": {
+      "additionalProperties": false,
+      "description": "Actionable independent-review finding.",
+      "properties": {
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "finding_id": {
+          "title": "Finding Id",
+          "type": "string"
+        },
+        "line": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Line"
+        },
+        "path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Path"
+        },
+        "resolution_evidence_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Resolution Evidence Ids",
+          "type": "array"
+        },
+        "resolved": {
+          "default": false,
+          "title": "Resolved",
+          "type": "boolean"
+        },
+        "severity": {
+          "$ref": "#/$defs/FindingSeverity"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "finding_id",
+        "severity",
+        "title",
+        "description"
+      ],
+      "title": "ReviewFinding",
+      "type": "object"
+    },
+    "ReviewProgress": {
+      "description": "Completion-auditor judgment against the frozen issue goals.",
+      "enum": [
+        "improved",
+        "no_progress",
+        "regressed"
+      ],
+      "title": "ReviewProgress",
+      "type": "string"
+    },
+    "ReviewRecord": {
+      "additionalProperties": false,
+      "description": "One reviewer verdict tied to an exact candidate diff.",
+      "properties": {
+        "assessed_goal_path_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Assessed Goal Path Ids",
+          "type": "array"
+        },
+        "code_diff_sha": {
+          "title": "Code Diff Sha",
+          "type": "string"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "evidence_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidence Ids",
+          "type": "array"
+        },
+        "findings": {
+          "items": {
+            "$ref": "#/$defs/ReviewFinding"
+          },
+          "title": "Findings",
+          "type": "array"
+        },
+        "goal_revision": {
+          "minimum": 0,
+          "title": "Goal Revision",
+          "type": "integer"
+        },
+        "packet_digest": {
+          "title": "Packet Digest",
+          "type": "string"
+        },
+        "packet_id": {
+          "title": "Packet Id",
+          "type": "string"
+        },
+        "progress": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReviewProgress"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "progress_explanation": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Progress Explanation"
+        },
+        "review_cycle": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Review Cycle"
+        },
+        "review_id": {
+          "title": "Review Id",
+          "type": "string"
+        },
+        "reviewer_session_id": {
+          "title": "Reviewer Session Id",
+          "type": "string"
+        },
+        "role": {
+          "$ref": "#/$defs/ReviewRole"
+        },
+        "schema_version": {
+          "default": "review-record.v4",
+          "enum": [
+            "review-record.v3",
+            "review-record.v4"
+          ],
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "summary": {
+          "title": "Summary",
+          "type": "string"
+        },
+        "task_id": {
+          "title": "Task Id",
+          "type": "string"
+        },
+        "verdict": {
+          "$ref": "#/$defs/ReviewVerdict"
+        }
+      },
+      "required": [
+        "review_id",
+        "task_id",
+        "role",
+        "reviewer_session_id",
+        "packet_id",
+        "packet_digest",
+        "code_diff_sha",
+        "goal_revision",
+        "verdict",
+        "summary"
+      ],
+      "title": "ReviewRecord",
+      "type": "object"
+    },
+    "ReviewRole": {
+      "description": "Independent mandatory review roles.",
+      "enum": [
+        "completion-auditor",
+        "minimal-diff-reviewer"
+      ],
+      "title": "ReviewRole",
+      "type": "string"
+    },
+    "ReviewVerdict": {
+      "description": "Fail-closed review verdicts.",
+      "enum": [
+        "APPROVE",
+        "REVISION_REQUIRED",
+        "MORE_EVIDENCE_REQUIRED",
+        "REJECT"
+      ],
+      "title": "ReviewVerdict",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Mandatory dual-review gate.",
+  "properties": {
+    "code_diff_sha": {
+      "title": "Code Diff Sha",
+      "type": "string"
+    },
+    "goal_revision": {
+      "minimum": 0,
+      "title": "Goal Revision",
+      "type": "integer"
+    },
+    "reviews": {
+      "items": {
+        "$ref": "#/$defs/ReviewRecord"
+      },
+      "title": "Reviews",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "review-gate.v3",
+      "default": "review-gate.v3",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "task_id": {
+      "title": "Task Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "task_id",
+    "code_diff_sha",
+    "goal_revision"
+  ],
+  "title": "ReviewGate",
+  "type": "object"
+}

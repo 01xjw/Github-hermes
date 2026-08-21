@@ -1,0 +1,297 @@
+schema_version: project-hermes-config.v1
+project_root: /app/project-hermes
+
+control_plane:
+  mode: sqlite
+  sqlite_path: /app/project-hermes/state/controller/control-plane.db
+  database_url: null
+  api_url: null
+  lease_seconds: 300
+
+polling:
+  enabled: true
+  # Per-repository refresh cadence. Within a registry pass, the next
+  # repository starts immediately after the previous bounded scan completes.
+  interval_seconds: 900
+  # Training phase: examine one repository's newly opened Issues from the
+  # previous 30 days, then immediately rotate to the next repository.
+  rolling_window_days: 30
+  repositories_per_run: 1
+  sqlite_path: /app/project-hermes/state/controller/polling.db
+  agent_instructions_path: /app/project-hermes/release/source/project_hermes/AGENT.md
+  repository_skills_path: /app/project-hermes/release/source/project_hermes/repository_skills
+  require_repository_skills: true
+  # Guided training: scans and relevance checks stay automatic, but only an
+  # Issue explicitly selected in the Dashboard may enter Main Hermes planning.
+  require_operator_selection: true
+  # A fresh, tool-free DeepSeek Subagent screens every frozen Issue snapshot
+  # with the generic machine-fit role before Dashboard admission is possible.
+  issue_screening_enabled: true
+  issue_screening_profile_path: /app/project-hermes/release/source/project_hermes/screening_profiles/environment-issue-screener
+  issue_screening_batch_size: 12
+  issue_screening_protocol_retries: 2
+  issue_screening_software_capabilities:
+    - "Python 3.12.3 is installed in the Worker image."
+    - "ROCm-enabled PyTorch 2.9.1+gitff65f5b with HIP 7.2.53211-e1a6bc5663 is installed; torch.version.cuda is null."
+    - "On GPU Jobs, torch.cuda is the HIP compatibility namespace and is available on the assigned AMD device."
+    - "Triton, NumPy, pytest, safetensors, scikit-image, Transformers, ONNX, PEFT, Pillow, Jinja2, FastAPI, compressed-tensors, and vLLM Python modules are installed."
+    - "hipcc, CMake, Ninja, g++, Clang, Clang++, and Git are installed."
+  issue_screening_unavailable_capabilities:
+    - "NVIDIA CUDA and nvcc are not installed."
+    - "clang-tidy is not installed."
+    - "A Java runtime and JDK are not installed."
+    - "vulkaninfo is not installed; Vulkan runtime availability is not proven."
+    - "External model weights and datasets are not preloaded unless the frozen packet or repository source proves otherwise."
+  issue_screening_validation_constraints:
+    - "One Worker Job is limited to 4 CPU cores, 32 GiB memory, and 7200 seconds."
+    - "The installed Python runtime is independent of the candidate checkout; native source changes require a targeted offline rebuild before they are accepted."
+    - "A full repository source build is not guaranteed to fit; use a targeted build/test path or classify the requirement as unresolved."
+    - "The base image does not install torchao, onnxruntime, diffusers, or sglang as Python packages; repository-supplied offline imports may still close those dependencies."
+    - "A repository checkout can shadow installed packages; capability probes must use a clean working directory or an explicit import path."
+  issue_screening_probe_consumer: "Authenticated guided-training operator using the explicit ProjectHermes re-screen action; the resulting immutable screening revision consumes the probe evidence."
+  require_screening_select_for_operator: true
+  minimum_evidence_score: 4
+  require_body: true
+  exclude_labels: [duplicate, invalid, wontfix, question]
+  max_issue_pages_per_repository: 30
+  max_candidates_per_repository: 3000
+  max_candidates_per_run: 3000
+  # GitHub occasionally terminates large repository transfers in this
+  # cluster. The controller uses HTTP/1.1 with one request and bounded retry.
+  git_command_timeout_seconds: 900
+  git_fetch_attempts: 3
+  git_fetch_retry_backoff_seconds: 5
+  max_pending_work_items: 6
+  # Run the six verified Issue lanes concurrently. Discovery remains bounded
+  # and serial per repository, while each Work item keeps its own workspace,
+  # Codex session, GPU allocation, and independent Review pipeline.
+  max_active_work_items: 6
+  max_global_jobs: 6
+  max_global_gpus: 6
+  # Initial Worker execution plus at most three reviewer-directed revisions.
+  max_review_execution_attempts: 4
+  manager_projection_limit: 6
+  manager_issue_body_char_limit: 6000
+  manager_fresh_session_per_decision: true
+  manager_idle_interval_seconds: 300
+  manager_error_retry_seconds: 300
+  manager_protocol_retry_seconds: 30
+  worker_capacity_retry_base_seconds: 300
+  worker_capacity_retry_max_seconds: 3600
+  repositories:
+    - repository: ROCm/ROCm
+      relevance_policy: amd_native
+      skill_name: solve-rocm-rocm
+    - repository: ROCm/composable_kernel
+      relevance_policy: amd_native
+      skill_name: solve-rocm-composable-kernel
+    - repository: ROCm/aiter
+      relevance_policy: amd_native
+      skill_name: solve-rocm-aiter
+    - repository: pytorch/pytorch
+      relevance_policy: amd_or_portable
+      skill_name: solve-pytorch-pytorch
+    - repository: pytorch/vision
+      relevance_policy: amd_or_portable
+      skill_name: solve-pytorch-vision
+    - repository: pytorch/executorch
+      relevance_policy: amd_or_portable
+      skill_name: solve-pytorch-executorch
+    - repository: microsoft/onnxruntime
+      relevance_policy: amd_or_portable
+      skill_name: solve-microsoft-onnxruntime
+    - repository: huggingface/diffusers
+      relevance_policy: amd_or_portable
+      skill_name: solve-huggingface-diffusers
+    - repository: huggingface/transformers
+      relevance_policy: amd_or_portable
+      skill_name: solve-huggingface-transformers
+    - repository: vllm-project/vllm
+      relevance_policy: amd_or_portable
+      skill_name: solve-vllm-project-vllm
+    - repository: sgl-project/sglang
+      relevance_policy: amd_or_portable
+      skill_name: solve-sgl-project-sglang
+    - repository: ggml-org/llama.cpp
+      relevance_policy: amd_or_portable
+      skill_name: solve-ggml-org-llama-cpp
+    - repository: flashinfer-ai/flashinfer
+      relevance_policy: amd_or_portable
+      skill_name: solve-flashinfer-ai-flashinfer
+    - repository: deepseek-ai/DeepEP
+      relevance_policy: amd_or_portable
+      skill_name: solve-deepseek-ai-deepep
+    - repository: deepseek-ai/DeepGEMM
+      relevance_policy: amd_or_portable
+      skill_name: solve-deepseek-ai-deepgemm
+    - repository: triton-lang/triton
+      relevance_policy: amd_or_portable
+      skill_name: solve-triton-lang-triton
+    - repository: PaddlePaddle/Paddle
+      relevance_policy: amd_or_portable
+      skill_name: solve-paddlepaddle-paddle
+    - repository: SemiAnalysisAI/InferenceX
+      relevance_policy: amd_or_portable
+      skill_name: solve-semianalysisai-inferencex
+
+hermes:
+  session_db_path: /app/project-hermes/state/controller/hermes-sessions.db
+  allowed_tools: []
+  loop_interval_seconds: 5.0
+  credentials_file: /app/project-hermes/state/controller/credentials.yaml
+  model_profile:
+    profile: hermes
+    model: deepseek-v4-pro
+    model_provider: deepseek
+    provider_endpoint: https://api.deepseek.com/v1
+    provider_api_key_env: DEEPSEEK_API_KEY
+    provider_wire_api: chat
+    reasoning_mode: provider_default
+    reasoning_effort: null
+    context_window: 1000000
+  reviewer_profile:
+    profile: reviewer
+    model: MiniMax-M3
+    model_provider: minimax-cn
+    provider_endpoint: https://api.minimaxi.com/v1
+    provider_api_key_env: MINIMAX_CN_API_KEY
+    provider_wire_api: chat
+    reasoning_mode: provider_default
+    reasoning_effort: null
+    context_window: 1000000
+  # Worker continuity summaries share the reviewed official DeepSeek route
+  # with the Plan agent, but remain a stateless conversation.
+  worker_handoff_profile:
+    profile: worker-handoff
+    model: deepseek-v4-pro
+    model_provider: deepseek
+    provider_endpoint: https://api.deepseek.com/v1
+    provider_api_key_env: DEEPSEEK_API_KEY
+    provider_wire_api: chat
+    reasoning_mode: provider_default
+    reasoning_effort: null
+    context_window: 1000000
+
+codex:
+  enabled: true
+  sdk_version: 0.144.4
+  cli_version: 0.144.4
+  runtime_root: /app/project-hermes/state/controller/runtime
+  model: null
+  model_provider: null
+  provider_endpoint: null
+  provider_api_key_env: null
+  provider_wire_api: responses
+  model_profiles:
+    primary:
+      profile: codex-primary
+      model: deepseek-v4-pro
+      model_provider: deepseek
+      provider_endpoint: https://api.deepseek.com/v1
+      provider_api_key_env: DEEPSEEK_API_KEY
+      provider_wire_api: responses
+      reasoning_mode: provider_default
+      reasoning_effort: null
+      context_window: 1000000
+    escalated:
+      profile: codex-escalated
+      model: deepseek-v4-pro
+      model_provider: deepseek
+      provider_endpoint: https://api.deepseek.com/v1
+      provider_api_key_env: DEEPSEEK_API_KEY
+      provider_wire_api: responses
+      reasoning_mode: provider_default
+      reasoning_effort: null
+      context_window: 1000000
+  primary_profile: primary
+  escalation_profile: escalated
+  credential_delivery: file_mount
+  credentials_file: /app/project-hermes/state/controller/credentials.yaml
+  network_access: true
+  startup_timeout_seconds: 30
+  turn_timeout_seconds: 7200
+
+kubernetes_jobs:
+  enabled: true
+  namespace: project-hermes-jobs
+  node_name: null
+  job_service_account_name: project-hermes-job
+  gpu_resource_name: amd.com/gpu
+  gpu_architecture_label: amd.com/gpu.arch
+  allowed_image_prefixes:
+    - docker.io/library/
+    - docker.io/rocm/
+    - 10.5.10.89:1808/xinwei/
+  image_pull_secrets: []
+  cpu_request: "1"
+  cpu_limit: "4"
+  memory_request: 4Gi
+  memory_limit: 32Gi
+  # Keep enough bounded scratch space for one patched PyTorch installation and
+  # its focused test artifacts. The repository skill forbids accumulating
+  # multiple complete site-packages copies in this volume.
+  worker_tmp_size_limit: 32Gi
+  max_timeout_seconds: 7200
+  # Provider capacity can remain saturated for several minutes. Keep the
+  # in-flight Codex conversation and task workspace alive through that window
+  # instead of converting a transient 429 burst into failed Work.
+  codex_request_max_retries: 50
+  codex_stream_max_retries: 8
+  codex_capacity_resume_attempts: 8
+  # Rotate to a fresh Codex conversation after two capacity failures. Hermes
+  # supplies a bounded handoff while the same Pod workspace remains mounted.
+  codex_capacity_handoff_after_attempts: 2
+  codex_capacity_backoff_seconds: 30
+  ttl_seconds_after_finished: 300
+  delete_timeout_seconds: 60
+  release_root: /app/project-hermes/release
+  active_release_state_path: /app/project-hermes/state/hermes/release.json
+  release_pvc_name: github-agent-workspace
+  release_pvc_subpath_prefix: releases/releases
+  source_bundle_root: /app/project-hermes/state/controller/source-bundles
+  source_bundle_pvc_name: github-agent-workspace
+  source_bundle_pvc_subpath: state/controller/source-bundles
+  artifact_archive_root: /app/project-hermes/state/controller/worker-artifacts
+  artifact_archive_pvc_name: github-agent-workspace
+  artifact_archive_pvc_subpath: state/controller/worker-artifacts
+  model_secret_name: project-hermes-credentials
+  model_secret_key: deepseek-api-key
+  model_proxy_service_name: project-hermes-model-proxy
+  model_proxy_port: 3128
+  max_active_jobs: 8
+  max_total_gpus: 6
+
+resources:
+  # Six Codex workers plus the Main Hermes planning/reconciliation lane.
+  max_parallel_nodes: 7
+  max_gpu_count: 6
+  max_model_concurrency: 7
+  max_artifact_bytes: null
+
+gpu_devices:
+  - gpu_id: k8s-slot-0
+    architecture: gfx1100
+    node: wx-k8s-test-s-002
+    healthy: true
+  - gpu_id: k8s-slot-1
+    architecture: gfx1100
+    node: wx-k8s-test-s-002
+    healthy: true
+  - gpu_id: k8s-slot-2
+    architecture: gfx1100
+    node: wx-k8s-test-s-002
+    healthy: true
+  - gpu_id: k8s-slot-3
+    architecture: gfx1100
+    node: wx-k8s-test-s-002
+    healthy: true
+  - gpu_id: k8s-slot-4
+    architecture: gfx1100
+    node: wx-k8s-test-s-002
+    healthy: true
+  - gpu_id: k8s-slot-5
+    architecture: gfx1100
+    node: wx-k8s-test-s-002
+    healthy: true
+
+english_only: true

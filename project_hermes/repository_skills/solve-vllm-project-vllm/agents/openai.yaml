@@ -1,0 +1,4 @@
+interface:
+  display_name: "vLLM Issue Solver"
+  short_description: "Resolve vLLM Issues across ROCm serving paths"
+  default_prompt: "Use $solve-vllm-project-vllm to solve the locked repository Issue."

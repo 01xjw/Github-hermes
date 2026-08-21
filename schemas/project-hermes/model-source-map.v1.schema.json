@@ -1,0 +1,103 @@
+{
+  "$defs": {
+    "ModelOrigin": {
+      "additionalProperties": false,
+      "description": "One exact external source for a logical model.",
+      "properties": {
+        "expected_files": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "minProperties": 1,
+          "title": "Expected Files",
+          "type": "object"
+        },
+        "kind": {
+          "$ref": "#/$defs/ModelOriginKind"
+        },
+        "model_id": {
+          "title": "Model Id",
+          "type": "string"
+        },
+        "revision": {
+          "title": "Revision",
+          "type": "string"
+        },
+        "source_host": {
+          "title": "Source Host",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "model_id",
+        "revision",
+        "expected_files",
+        "source_host"
+      ],
+      "title": "ModelOrigin",
+      "type": "object"
+    },
+    "ModelOriginKind": {
+      "description": "Explicit supported external model catalogs.",
+      "enum": [
+        "hugging_face",
+        "modelscope"
+      ],
+      "title": "ModelOriginKind",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Explicit, checksum-safe model catalog fallback.",
+  "properties": {
+    "fallback_order": {
+      "items": {
+        "$ref": "#/$defs/ModelOriginKind"
+      },
+      "minItems": 1,
+      "title": "Fallback Order",
+      "type": "array"
+    },
+    "internal_cache_ref": {
+      "title": "Internal Cache Ref",
+      "type": "string"
+    },
+    "license": {
+      "title": "License",
+      "type": "string"
+    },
+    "logical_name": {
+      "title": "Logical Name",
+      "type": "string"
+    },
+    "origins": {
+      "items": {
+        "$ref": "#/$defs/ModelOrigin"
+      },
+      "minItems": 1,
+      "title": "Origins",
+      "type": "array"
+    },
+    "relay_id": {
+      "title": "Relay Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "model-source-map.v1",
+      "default": "model-source-map.v1",
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "logical_name",
+    "internal_cache_ref",
+    "license",
+    "origins",
+    "fallback_order",
+    "relay_id"
+  ],
+  "title": "ModelSourceMap",
+  "type": "object"
+}

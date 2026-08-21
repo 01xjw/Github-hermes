@@ -1,0 +1,358 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: project-hermes-install
+  namespace: project-hermes-jobs
+  labels:
+    app.kubernetes.io/name: project-hermes-installer
+    app.kubernetes.io/part-of: project-hermes
+  annotations:
+    project-hermes.io/release-digest: "@PROJECT_HERMES_RELEASE_DIGEST@"
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 3600
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: project-hermes-installer
+        app.kubernetes.io/part-of: project-hermes
+      annotations:
+        project-hermes.io/release-digest: "@PROJECT_HERMES_RELEASE_DIGEST@"
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      restartPolicy: Never
+      nodeSelector:
+        kubernetes.io/hostname: wx-k8s-test-s-002
+      tolerations:
+        - key: amd-oneclick.io/memory-tier
+          operator: Equal
+          value: high
+          effect: NoSchedule
+      containers:
+        - name: installer
+          image: "@PROJECT_HERMES_RUNTIME_IMAGE@"
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/bash
+            - -lc
+          args:
+            - |
+              set -euo pipefail
+              readonly expected_digest="@PROJECT_HERMES_RELEASE_DIGEST@"
+              readonly root=/app/project-hermes
+              readonly delivery="${root}/releases"
+              readonly state="${root}/state"
+              echo "Waiting for ProjectHermes release ${expected_digest}"
+              until [ -f /staging/upload.complete ]; do
+                sleep 2
+              done
+
+              uploaded_digest="$(
+                tr -d '[:space:]' < /staging/upload.complete
+              )"
+              if [ "${uploaded_digest}" != "${expected_digest}" ]; then
+                echo "upload marker does not match rendered release" >&2
+                exit 65
+              fi
+              if [ "$(
+                tr -d '[:space:]' < /staging/RELEASE_DIGEST
+              )" != "${expected_digest}" ]; then
+                echo "RELEASE_DIGEST does not match rendered release" >&2
+                exit 65
+              fi
+
+              cd /staging
+              sha256sum --strict --check SHA256SUMS
+              /opt/venv/bin/python - <<'PY'
+              import hashlib
+              import json
+              import tarfile
+              from pathlib import Path, PurePosixPath
+
+              root = Path("/staging")
+              expected = (root / "RELEASE_DIGEST").read_text(
+                  encoding="ascii"
+              ).strip()
+              manifest_path = root / "release-manifest.json"
+              actual = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+              if actual != expected:
+                  raise RuntimeError("release manifest digest mismatch")
+              manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+              if manifest.get("schema_version") != "project-hermes-release.v1":
+                  raise RuntimeError("unsupported release manifest schema")
+              if manifest.get("codex") != {
+                  "sdk_version": "0.144.4",
+                  "cli_version": "0.144.4",
+              }:
+                  raise RuntimeError("release does not contain exact Codex pins")
+              artifacts = {
+                  item["name"]: item
+                  for item in manifest.get("artifacts", [])
+              }
+              expected_artifacts = {
+                  "source.tar.gz": "source",
+                  "web.tar.gz": "web",
+                  "wheelhouse.tar.gz": "wheelhouse",
+                  "worker.tar.gz": "worker",
+              }
+              if set(artifacts) != set(expected_artifacts):
+                  raise RuntimeError("release has an unexpected artifact set")
+
+              def digest(path: Path) -> str:
+                  value = hashlib.sha256()
+                  with path.open("rb") as stream:
+                      for chunk in iter(
+                          lambda: stream.read(1024 * 1024), b""
+                      ):
+                          value.update(chunk)
+                  return value.hexdigest()
+
+              for name, prefix in expected_artifacts.items():
+                  path = root / name
+                  record = artifacts[name]
+                  if record.get("sha256") != digest(path):
+                      raise RuntimeError(f"artifact digest mismatch: {name}")
+                  if record.get("size") != path.stat().st_size:
+                      raise RuntimeError(f"artifact size mismatch: {name}")
+                  names = set()
+                  with tarfile.open(path, mode="r:gz") as archive:
+                      for member in archive:
+                          relative = PurePosixPath(member.name)
+                          if (
+                              relative.is_absolute()
+                              or not relative.parts
+                              or ".." in relative.parts
+                              or relative.parts[0] != prefix
+                          ):
+                              raise RuntimeError(
+                                  f"unsafe archive member: {member.name}"
+                              )
+                          if member.name in names:
+                              raise RuntimeError(
+                                  f"duplicate archive member: {member.name}"
+                              )
+                          names.add(member.name)
+                          if not (
+                              member.isfile()
+                              or member.isdir()
+                              or member.issym()
+                          ):
+                              raise RuntimeError(
+                                  f"unsupported archive member: {member.name}"
+                              )
+                          if member.issym():
+                              target = PurePosixPath(member.linkname)
+                              if target.is_absolute():
+                                  raise RuntimeError(
+                                      f"absolute archive symlink: {member.name}"
+                                  )
+                              stack = list(relative.parent.parts)
+                              for part in target.parts:
+                                  if part in ("", "."):
+                                      continue
+                                  if part == "..":
+                                      if len(stack) <= 1:
+                                          raise RuntimeError(
+                                              "archive symlink escapes prefix: "
+                                              f"{member.name}"
+                                          )
+                                      stack.pop()
+                                  else:
+                                      stack.append(part)
+                  if not names:
+                      raise RuntimeError(f"empty release artifact: {name}")
+              PY
+
+              install -d -m 0755 "${delivery}/releases"
+              install -d -m 0700 \
+                "${state}/controller" \
+                "${state}/hermes" \
+                "${root}/worktrees" \
+                "${root}/logs"
+              release_dir="${delivery}/releases/${expected_digest}"
+              if [ ! -d "${release_dir}" ]; then
+                candidate="${delivery}/.install-${expected_digest}-$$"
+                trap 'rm -rf "${candidate:-}"' EXIT
+                install -d -m 0755 "${candidate}"
+                for archive in \
+                  source.tar.gz \
+                  web.tar.gz \
+                  wheelhouse.tar.gz \
+                  worker.tar.gz
+                do
+                  tar \
+                    --extract \
+                    --gzip \
+                    --file "/staging/${archive}" \
+                    --directory "${candidate}" \
+                    --no-same-owner \
+                    --no-same-permissions
+                done
+                install -m 0444 /staging/release-manifest.json \
+                  "${candidate}/release-manifest.json"
+                install -m 0444 /staging/RELEASE_DIGEST \
+                  "${candidate}/RELEASE_DIGEST"
+                install -m 0444 /staging/SHA256SUMS \
+                  "${candidate}/SHA256SUMS"
+                install -d -m 0755 "${candidate}/config"
+                install -m 0444 \
+                  "${candidate}/source/deploy/kubernetes/project-hermes.cluster.yaml" \
+                  "${candidate}/config/project-hermes.cluster.yaml"
+
+                export PIP_DISABLE_PIP_VERSION_CHECK=1
+                export PIP_NO_INDEX=1
+                export PYTHONDONTWRITEBYTECODE=1
+                /opt/venv/bin/python -m pip install \
+                  --no-compile \
+                  --no-deps \
+                  --no-index \
+                  --only-binary=:all: \
+                  --require-hashes \
+                  --target "${candidate}/python" \
+                  --find-links "${candidate}/wheelhouse/wheels" \
+                  --requirement \
+                    "${candidate}/wheelhouse/requirements.lock"
+                CANDIDATE_ROOT="${candidate}" \
+              PYTHONPATH="${candidate}/python:${candidate}/source" \
+                  /opt/venv/bin/python - <<'PY'
+              from importlib.metadata import version
+              import os
+              from pathlib import Path
+
+              import yaml
+
+              from project_hermes.config import ProjectHermesConfig
+
+              for distribution in ("openai-codex", "openai-codex-cli-bin"):
+                  actual = version(distribution)
+                  if actual != "0.144.4":
+                      raise RuntimeError(
+                          f"{distribution} version mismatch: {actual}"
+                      )
+              candidate = Path(os.environ["CANDIDATE_ROOT"])
+              config_path = candidate / "config/project-hermes.cluster.yaml"
+              raw = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+              ProjectHermesConfig.model_validate(raw).resolved(config_path)
+              if not (candidate / "web/index.html").is_file():
+                  raise RuntimeError("web bundle is missing index.html")
+              PY
+                chmod -R a-w "${candidate}"
+                mv "${candidate}" "${release_dir}"
+                trap - EXIT
+              elif [ "$(
+                sha256sum "${release_dir}/release-manifest.json" |
+                  awk '{print $1}'
+              )" != "${expected_digest}" ]; then
+                echo "existing versioned release failed digest check" >&2
+                exit 65
+              fi
+
+              PYTHONPATH="${release_dir}/python:${release_dir}/source" \
+                /opt/venv/bin/python - <<'PY'
+              from pathlib import Path
+
+              from project_hermes.credentials import (
+                  install_controller_credentials,
+              )
+
+              install_controller_credentials(
+                  Path("/var/run/secrets/project-hermes"),
+                  Path(
+                      "/app/project-hermes/state/controller/credentials.yaml"
+                  ),
+              )
+              PY
+
+              new_target="releases/${expected_digest}"
+              old_target="$(readlink "${delivery}/current" || true)"
+              previous_digest=""
+              if [ "${old_target}" != "${new_target}" ]; then
+                if [ -n "${old_target}" ] &&
+                   [ -d "${delivery}/${old_target}" ]; then
+                  ln -s "${old_target}" "${delivery}/previous.next"
+                  mv -Tf \
+                    "${delivery}/previous.next" \
+                    "${delivery}/previous"
+                  previous_digest="${old_target#releases/}"
+                fi
+                ln -s "${new_target}" "${delivery}/current.next"
+                mv -Tf "${delivery}/current.next" "${delivery}/current"
+              elif [ -L "${delivery}/previous" ]; then
+                previous_digest="$(readlink "${delivery}/previous")"
+                previous_digest="${previous_digest#releases/}"
+              fi
+
+              ACTIVE_RELEASE="${expected_digest}" \
+              PREVIOUS_RELEASE="${previous_digest}" \
+                /opt/venv/bin/python - <<'PY'
+              import json
+              import os
+              from datetime import datetime, timezone
+              from pathlib import Path
+
+              destination = Path(
+                  "/app/project-hermes/state/hermes/release.json"
+              )
+              temporary = destination.with_suffix(".tmp")
+              temporary.write_text(
+                  json.dumps(
+                      {
+                          "schema_version": "project-hermes-active-release.v1",
+                          "active_release_digest": os.environ[
+                              "ACTIVE_RELEASE"
+                          ],
+                          "previous_release_digest": (
+                              os.environ["PREVIOUS_RELEASE"] or None
+                          ),
+                          "activated_at": datetime.now(
+                              timezone.utc
+                          ).isoformat(),
+                      },
+                      sort_keys=True,
+                      separators=(",", ":"),
+                  )
+                  + "\n",
+                  encoding="utf-8",
+              )
+              temporary.replace(destination)
+              PY
+              echo "Activated ProjectHermes release ${expected_digest}"
+          resources:
+            requests:
+              cpu: "1"
+              memory: 4Gi
+            limits:
+              cpu: "8"
+              memory: 32Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            privileged: false
+          volumeMounts:
+            - name: workspace
+              mountPath: /app/project-hermes
+            - name: staging
+              mountPath: /staging
+            - name: model-credentials
+              mountPath: /var/run/secrets/project-hermes
+              readOnly: true
+      volumes:
+        - name: workspace
+          persistentVolumeClaim:
+            claimName: github-agent-workspace
+        - name: staging
+          emptyDir:
+            sizeLimit: 4Gi
+        - name: model-credentials
+          secret:
+            secretName: project-hermes-credentials
+            items:
+              - key: model-access-key
+                path: model-access-key
+              - key: minimax-api-key
+                path: minimax-api-key
+              - key: deepseek-api-key
+                path: deepseek-api-key

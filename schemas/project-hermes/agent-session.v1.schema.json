@@ -1,0 +1,109 @@
+{
+  "$defs": {
+    "LifecycleStatus": {
+      "description": "Coarse control-plane lifecycle states.\n\nTechnical activities such as locating, reproducing, planning, and\nvalidating are capabilities, not lifecycle states.",
+      "enum": [
+        "DISCOVERED",
+        "QUEUED",
+        "CLAIMED",
+        "RUNNING",
+        "WAITING_RESOURCE",
+        "WAITING_ARTIFACT",
+        "WAITING_REVIEW",
+        "WAITING_APPROVAL",
+        "COMPLETED",
+        "BLOCKED",
+        "FAILED",
+        "CANCELLED"
+      ],
+      "title": "LifecycleStatus",
+      "type": "string"
+    },
+    "ProjectRole": {
+      "description": "Security identities recognized by the control plane.",
+      "enum": [
+        "control_plane",
+        "campaign_hermes",
+        "project_hermes",
+        "codex",
+        "runner",
+        "reviewer",
+        "curator",
+        "operator"
+      ],
+      "title": "ProjectRole",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Durable identity for one runtime session.",
+  "properties": {
+    "role": {
+      "$ref": "#/$defs/ProjectRole"
+    },
+    "root_thread_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Root Thread Id"
+    },
+    "runtime": {
+      "title": "Runtime",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "agent-session.v1",
+      "default": "agent-session.v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "session_id": {
+      "title": "Session Id",
+      "type": "string"
+    },
+    "socket_path": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Socket Path"
+    },
+    "started_at": {
+      "format": "date-time",
+      "title": "Started At",
+      "type": "string"
+    },
+    "status": {
+      "$ref": "#/$defs/LifecycleStatus"
+    },
+    "task_id": {
+      "title": "Task Id",
+      "type": "string"
+    },
+    "updated_at": {
+      "format": "date-time",
+      "title": "Updated At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "session_id",
+    "task_id",
+    "runtime",
+    "role",
+    "status"
+  ],
+  "title": "AgentSession",
+  "type": "object"
+}

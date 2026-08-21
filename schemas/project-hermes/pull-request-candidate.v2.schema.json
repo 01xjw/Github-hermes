@@ -1,0 +1,251 @@
+{
+  "$defs": {
+    "CandidateChecks": {
+      "additionalProperties": false,
+      "description": "Checks evidence retained outside the production candidate file set.",
+      "properties": {
+        "evidence_ids": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Evidence Ids",
+          "type": "array"
+        },
+        "local_test_overlay": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocalTestOverlaySummary"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "evidence_ids"
+      ],
+      "title": "CandidateChecks",
+      "type": "object"
+    },
+    "DependencyPrState": {
+      "description": "State of a prerequisite repository change.",
+      "enum": [
+        "draft",
+        "open",
+        "merged",
+        "closed"
+      ],
+      "title": "DependencyPrState",
+      "type": "string"
+    },
+    "LocalTestOverlaySummary": {
+      "additionalProperties": false,
+      "description": "Checks-safe projection of a separately stored test overlay.",
+      "properties": {
+        "command": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Command",
+          "type": "array"
+        },
+        "content_digest": {
+          "title": "Content Digest",
+          "type": "string"
+        },
+        "files": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "minProperties": 1,
+          "title": "Files",
+          "type": "object"
+        },
+        "overlay_id": {
+          "title": "Overlay Id",
+          "type": "string"
+        },
+        "passed": {
+          "title": "Passed",
+          "type": "boolean"
+        },
+        "results": {
+          "additionalProperties": true,
+          "title": "Results",
+          "type": "object"
+        },
+        "total_lines": {
+          "minimum": 0,
+          "title": "Total Lines",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "overlay_id",
+        "content_digest",
+        "files",
+        "total_lines",
+        "command",
+        "passed",
+        "results"
+      ],
+      "title": "LocalTestOverlaySummary",
+      "type": "object"
+    },
+    "PullRequestDependency": {
+      "additionalProperties": false,
+      "description": "One upstream repository change required by this candidate.",
+      "properties": {
+        "head_sha": {
+          "title": "Head Sha",
+          "type": "string"
+        },
+        "pull_request_url": {
+          "title": "Pull Request Url",
+          "type": "string"
+        },
+        "repository": {
+          "title": "Repository",
+          "type": "string"
+        },
+        "required_state": {
+          "$ref": "#/$defs/DependencyPrState",
+          "default": "merged"
+        },
+        "state": {
+          "$ref": "#/$defs/DependencyPrState"
+        }
+      },
+      "required": [
+        "repository",
+        "pull_request_url",
+        "head_sha",
+        "state"
+      ],
+      "title": "PullRequestDependency",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Frozen one-repository publication candidate.",
+  "properties": {
+    "base_sha": {
+      "title": "Base Sha",
+      "type": "string"
+    },
+    "body": {
+      "minLength": 1,
+      "title": "Body",
+      "type": "string"
+    },
+    "branch": {
+      "title": "Branch",
+      "type": "string"
+    },
+    "candidate_id": {
+      "title": "Candidate Id",
+      "type": "string"
+    },
+    "checks": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CandidateChecks"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "code_diff_sha": {
+      "title": "Code Diff Sha",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "dependencies": {
+      "items": {
+        "$ref": "#/$defs/PullRequestDependency"
+      },
+      "title": "Dependencies",
+      "type": "array"
+    },
+    "draft": {
+      "default": true,
+      "title": "Draft",
+      "type": "boolean"
+    },
+    "files": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Files",
+      "type": "array"
+    },
+    "goal_revision": {
+      "minimum": 0,
+      "title": "Goal Revision",
+      "type": "integer"
+    },
+    "head_sha": {
+      "title": "Head Sha",
+      "type": "string"
+    },
+    "includes_untracked": {
+      "title": "Includes Untracked",
+      "type": "boolean"
+    },
+    "minimal_diff_assessment_digest": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Minimal Diff Assessment Digest"
+    },
+    "repository": {
+      "title": "Repository",
+      "type": "string"
+    },
+    "schema_version": {
+      "default": "pull-request-candidate.v2",
+      "enum": [
+        "pull-request-candidate.v1",
+        "pull-request-candidate.v2"
+      ],
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "task_id": {
+      "title": "Task Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "candidate_id",
+    "task_id",
+    "repository",
+    "goal_revision",
+    "base_sha",
+    "head_sha",
+    "code_diff_sha",
+    "branch",
+    "files",
+    "includes_untracked",
+    "body"
+  ],
+  "title": "PullRequestCandidate",
+  "type": "object"
+}

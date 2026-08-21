@@ -1,0 +1,30 @@
+{
+  "additionalProperties": false,
+  "description": "Immutable identity returned after backend admission.",
+  "properties": {
+    "backend": {
+      "title": "Backend",
+      "type": "string"
+    },
+    "execution_id": {
+      "title": "Execution Id",
+      "type": "string"
+    },
+    "native_id": {
+      "title": "Native Id",
+      "type": "string"
+    },
+    "submitted_at": {
+      "format": "date-time",
+      "title": "Submitted At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "execution_id",
+    "backend",
+    "native_id"
+  ],
+  "title": "BackendExecution",
+  "type": "object"
+}

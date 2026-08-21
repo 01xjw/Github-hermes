@@ -1,0 +1,80 @@
+{
+  "$defs": {
+    "LifecycleStatus": {
+      "description": "Coarse control-plane lifecycle states.\n\nTechnical activities such as locating, reproducing, planning, and\nvalidating are capabilities, not lifecycle states.",
+      "enum": [
+        "DISCOVERED",
+        "QUEUED",
+        "CLAIMED",
+        "RUNNING",
+        "WAITING_RESOURCE",
+        "WAITING_ARTIFACT",
+        "WAITING_REVIEW",
+        "WAITING_APPROVAL",
+        "COMPLETED",
+        "BLOCKED",
+        "FAILED",
+        "CANCELLED"
+      ],
+      "title": "LifecycleStatus",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Top-level v2 run projection.",
+  "properties": {
+    "completed_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Completed At"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "goal_revision": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Goal Revision",
+      "type": "integer"
+    },
+    "run_id": {
+      "title": "Run Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "pipeline-run.v2",
+      "default": "pipeline-run.v2",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "status": {
+      "$ref": "#/$defs/LifecycleStatus",
+      "default": "DISCOVERED"
+    },
+    "task_id": {
+      "title": "Task Id",
+      "type": "string"
+    },
+    "updated_at": {
+      "format": "date-time",
+      "title": "Updated At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "run_id",
+    "task_id"
+  ],
+  "title": "PipelineRun",
+  "type": "object"
+}

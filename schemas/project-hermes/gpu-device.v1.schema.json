@@ -1,0 +1,70 @@
+{
+  "additionalProperties": false,
+  "description": "Controller inventory for one physical GPU.",
+  "properties": {
+    "architecture": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Architecture"
+    },
+    "gpu_id": {
+      "title": "Gpu Id",
+      "type": "string"
+    },
+    "healthy": {
+      "default": true,
+      "title": "Healthy",
+      "type": "boolean"
+    },
+    "memory_mb": {
+      "anyOf": [
+        {
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Memory Mb"
+    },
+    "node": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Node"
+    },
+    "schema_version": {
+      "const": "gpu-device.v1",
+      "default": "gpu-device.v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "topology_labels": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Topology Labels",
+      "type": "object"
+    }
+  },
+  "required": [
+    "gpu_id"
+  ],
+  "title": "GpuDevice",
+  "type": "object"
+}

@@ -1,0 +1,4 @@
+interface:
+  display_name: "ROCm Core Issue Solver"
+  short_description: "Resolve ROCm core Issues with focused validation"
+  default_prompt: "Use $solve-rocm-rocm to solve the locked repository Issue."

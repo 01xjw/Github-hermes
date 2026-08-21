@@ -1,0 +1,317 @@
+{
+  "$defs": {
+    "ModelReasoningMode": {
+      "description": "Auditable reasoning behavior requested from a model provider.",
+      "enum": [
+        "provider_default",
+        "adaptive",
+        "disabled"
+      ],
+      "title": "ModelReasoningMode",
+      "type": "string"
+    },
+    "ProjectRole": {
+      "description": "Security identities recognized by the control plane.",
+      "enum": [
+        "control_plane",
+        "campaign_hermes",
+        "project_hermes",
+        "codex",
+        "runner",
+        "reviewer",
+        "curator",
+        "operator"
+      ],
+      "title": "ProjectRole",
+      "type": "string"
+    },
+    "RuntimeHandle": {
+      "additionalProperties": false,
+      "description": "Serializable runtime identity.",
+      "properties": {
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "model_route": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RuntimeModelRoute"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "native_thread_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Native Thread Id"
+        },
+        "runtime_generation": {
+          "default": 0,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Runtime Generation",
+          "type": "integer"
+        },
+        "runtime_name": {
+          "title": "Runtime Name",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "runtime-handle.v1",
+          "default": "runtime-handle.v1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "session_id": {
+          "title": "Session Id",
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/RuntimeStatus"
+        },
+        "task_id": {
+          "title": "Task Id",
+          "type": "string"
+        },
+        "transport_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Transport Ref"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "title": "Updated At",
+          "type": "string"
+        },
+        "worktree_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Worktree Path"
+        }
+      },
+      "required": [
+        "runtime_name",
+        "session_id",
+        "task_id",
+        "status"
+      ],
+      "title": "RuntimeHandle",
+      "type": "object"
+    },
+    "RuntimeModelRoute": {
+      "additionalProperties": false,
+      "description": "Resolved, credential-free model identity for one runtime session.",
+      "properties": {
+        "context_window": {
+          "anyOf": [
+            {
+              "maximum": 10000000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Context Window"
+        },
+        "model": {
+          "title": "Model",
+          "type": "string"
+        },
+        "model_provider": {
+          "title": "Model Provider",
+          "type": "string"
+        },
+        "profile": {
+          "title": "Profile",
+          "type": "string"
+        },
+        "provider_api_key_env": {
+          "title": "Provider Api Key Env",
+          "type": "string"
+        },
+        "provider_endpoint": {
+          "title": "Provider Endpoint",
+          "type": "string"
+        },
+        "provider_wire_api": {
+          "enum": [
+            "responses",
+            "chat"
+          ],
+          "title": "Provider Wire Api",
+          "type": "string"
+        },
+        "reasoning_effort": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reasoning Effort"
+        },
+        "reasoning_mode": {
+          "$ref": "#/$defs/ModelReasoningMode",
+          "default": "provider_default"
+        },
+        "schema_version": {
+          "const": "runtime-model-route.v1",
+          "default": "runtime-model-route.v1",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "profile",
+        "model",
+        "model_provider",
+        "provider_endpoint",
+        "provider_api_key_env",
+        "provider_wire_api"
+      ],
+      "title": "RuntimeModelRoute",
+      "type": "object"
+    },
+    "RuntimeStatus": {
+      "description": "Runtime session states independent from a specific agent framework.",
+      "enum": [
+        "STARTING",
+        "IDLE",
+        "RUNNING",
+        "COMPLETED",
+        "FAILED",
+        "CANCELLED",
+        "CLOSED"
+      ],
+      "title": "RuntimeStatus",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Serializable controller binding for one runtime session.",
+  "properties": {
+    "binding_id": {
+      "title": "Binding Id",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "handle": {
+      "$ref": "#/$defs/RuntimeHandle"
+    },
+    "last_event_sequence": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Last Event Sequence",
+      "type": "integer"
+    },
+    "last_result_status": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/RuntimeStatus"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "node_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Node Id"
+    },
+    "review_cycle": {
+      "anyOf": [
+        {
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Review Cycle"
+    },
+    "role": {
+      "$ref": "#/$defs/ProjectRole"
+    },
+    "run_id": {
+      "title": "Run Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "runtime-binding.v1",
+      "default": "runtime-binding.v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "task_id": {
+      "title": "Task Id",
+      "type": "string"
+    },
+    "updated_at": {
+      "format": "date-time",
+      "title": "Updated At",
+      "type": "string"
+    },
+    "version": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Version",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "binding_id",
+    "run_id",
+    "task_id",
+    "role",
+    "handle"
+  ],
+  "title": "RuntimeBinding",
+  "type": "object"
+}

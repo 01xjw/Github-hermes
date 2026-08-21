@@ -1,0 +1,4 @@
+interface:
+  display_name: "AITER Issue Solver"
+  short_description: "Resolve AITER Issues on ROCm and RDNA3 paths"
+  default_prompt: "Use $solve-rocm-aiter to solve the locked repository Issue."

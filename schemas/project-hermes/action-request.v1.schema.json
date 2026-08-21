@@ -1,0 +1,153 @@
+{
+  "$defs": {
+    "ActionKind": {
+      "description": "Policy-checked requests an agent can submit.",
+      "enum": [
+        "read_repository",
+        "write_worktree",
+        "create_node",
+        "request_execution",
+        "read_evidence",
+        "submit_evidence",
+        "request_review",
+        "submit_review",
+        "resolve_finding",
+        "request_approval",
+        "publish_pull_request",
+        "commit_knowledge",
+        "cleanup_task"
+      ],
+      "title": "ActionKind",
+      "type": "string"
+    },
+    "ProjectRole": {
+      "description": "Security identities recognized by the control plane.",
+      "enum": [
+        "control_plane",
+        "campaign_hermes",
+        "project_hermes",
+        "codex",
+        "runner",
+        "reviewer",
+        "curator",
+        "operator"
+      ],
+      "title": "ProjectRole",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "An untrusted request submitted to the control plane.",
+  "properties": {
+    "action": {
+      "$ref": "#/$defs/ActionKind"
+    },
+    "capability": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Capability"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "goal_revision_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Goal Revision Id"
+    },
+    "idempotency_key": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Idempotency Key"
+    },
+    "node_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Node Id"
+    },
+    "path": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Path"
+    },
+    "payload": {
+      "additionalProperties": true,
+      "title": "Payload",
+      "type": "object"
+    },
+    "repository": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Repository"
+    },
+    "request_id": {
+      "title": "Request Id",
+      "type": "string"
+    },
+    "requested_by": {
+      "$ref": "#/$defs/ProjectRole"
+    },
+    "schema_version": {
+      "const": "action-request.v1",
+      "default": "action-request.v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "task_id": {
+      "title": "Task Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "request_id",
+    "task_id",
+    "requested_by",
+    "action"
+  ],
+  "title": "ActionRequest",
+  "type": "object"
+}
