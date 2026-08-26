@@ -80,28 +80,9 @@ historical zero therefore must not be interpreted as the current product capabil
 
 ## Architecture
 
-```mermaid
-flowchart LR
-    GH[GitHub Issues] --> P[Polling loop<br/>one bounded repository scan]
-    P --> F[Mechanical filter<br/>and deduplication]
-    F --> DB[(Durable SQLite projections)]
-    DB --> S[Screening loop<br/>fresh batches of up to 12]
-    S --> O[Operator selection]
-    O --> M[Manager loop]
-    M --> H[Main Hermes<br/>fresh plan / block / wait decision]
-    H -->|committed plan| D[Deterministic scheduler]
-    D --> K[Up to 6 Kubernetes<br/>Codex Workers]
-    K --> I[Candidate ingest]
-    I --> R1[Minimal-diff Reviewer]
-    R1 --> R2[Completion Auditor<br/>sequential fresh session]
-    R2 -->|revision or more evidence| M
-    R2 -->|both APPROVE| L[Immutable candidate lock]
-    L --> API[Project Hermes API]
-    API --> UI[Operations Dashboard]
-    UI -->|operator confirms lock digest| PUB[Controller publication boundary]
-    PUB --> DPR[GitHub Draft PR]
-    GH -. live PR state .-> API
-```
+<p align="center">
+  <img src="assets/architecture.png" alt="GitHub Hermes orchestration architecture: six stages, four serial loops, three gates" width="100%">
+</p>
 
 `PollingSupervisor` runs four loops—polling, manager, reviewer, and screening. The
 loops may overlap in wall-clock time, but each loop has one serial lane. This keeps
@@ -129,10 +110,13 @@ present.
 | --- | --- |
 | `hermes_cli/web_server.py` | Calls `project_hermes.web_integration.mount_project_hermes` and mounts `/api/v2/project-hermes/`. |
 | `project_hermes.polling_supervisor.PollingSupervisor` | Coordinates the four durable service loops. |
-| `project_hermes/project_manager.py` | Sends committed work to `project_hermes/issue_launcher.py`. |
+| `project_hermes/project_manager.py` | Loads the release-owned `project_hermes/AGENT.md` contract for each Main Hermes decision and sends committed work to `project_hermes/issue_launcher.py`. |
+| `project_hermes/issue_screening.py` | Loads `screening_profiles/environment-issue-screener/SOUL.md` and `AGENT.md`, binds their digests to each fresh screening session, and persists the structured decision. |
+| `project_hermes/issue_launcher.py` | Binds the selected `repository_skills/<skill>/SKILL.md` identity and digest into the locked task before launching its isolated Worker. |
 | `project_hermes/execution.py` | Delegates external execution to `project_hermes/kubernetes_jobs.py`. |
 | `deploy/release-worker/execute-task.py` | Produces the Worker `result.json` and artifact manifest consumed by the controller. |
 | `project_hermes/candidate_ingest.py` | Converts validated Worker output into an internal candidate for `candidate_review.py`. |
+| `project_hermes/candidate_review.py` | Loads each assigned `reviewer_profiles/<role>/SOUL.md` and `AGENT.md` pair, binds its digests to a fresh tool-free review, and records the verdict against the frozen candidate. |
 | `project_hermes/api.py` | Provides authenticated contracts consumed by `web/src/lib/api.ts`. |
 | `project_hermes/candidate_publication.py` | Reconstructs and publishes an approved candidate through the controller-owned GitHub boundary. |
 
@@ -208,7 +192,19 @@ project_hermes/                    GitHub control plane and runtime adapters
   github_status.py                Live PR-state resolution with read-only fallback
   api.py                           Versioned Project Hermes REST API
   repository_skills/              One digest-locked Skill per configured repository
-  reviewer_profiles/              Immutable reviewer SOUL.md and AGENT.md pairs
+    solve-<owner>-<repo>/
+      SKILL.md                     Repository-specific Worker instructions
+  screening_profiles/
+    environment-issue-screener/
+      AGENT.md                     Screening procedure and output contract
+      SOUL.md                      Independent screening judgment posture
+  reviewer_profiles/
+    minimal-diff-reviewer/
+      AGENT.md                     Minimal-diff review procedure and contract
+      SOUL.md                      Minimal-scope judgment posture
+    completion-auditor/
+      AGENT.md                     Completion-audit procedure and contract
+      SOUL.md                      Completion and evidence judgment posture
 web/src/                           React and TypeScript Dashboard
 deploy/kubernetes/                 Release-rendered Kubernetes resources
 deploy/release-worker/             Isolated Worker preparation and execution
