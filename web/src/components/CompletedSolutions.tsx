@@ -1,289 +1,205 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  CheckCircle2,
-  ExternalLink,
-  GitPullRequest,
-  RefreshCw,
-} from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { CheckCircle2, ChevronLeft, ChevronRight, Clock3, ExternalLink, RefreshCw } from 'lucide-react'
+import { Button } from '@nous-research/ui/ui/components/button'
+import { Spinner } from '@nous-research/ui/ui/components/spinner'
 
-import { ProjectPanel } from "@/components/ProjectHermesUi";
-import {
-  COMPLETED_SOLUTIONS,
-  type CompletedSolution,
-  type UpstreamPullRequestState,
-} from "@/lib/completed-solutions";
-import { api, type ProjectPullRequestStatus } from "@/lib/api";
-import { cn } from "@/lib/utils";
+import { ProjectPanel, WorkStatusBadge, formatProjectTime } from '@/components/ProjectHermesUi'
+import { api } from '@/lib/api'
+import type { ProjectWorkItem, ProjectWorkListResponse } from '@/lib/api'
+import { cn } from '@/lib/utils'
 
-const UPSTREAM_TONES = {
-  open: "border-blue-200 bg-blue-50 text-blue-700",
-  draft: "border-amber-200 bg-amber-50 text-amber-700",
-  merged: "border-violet-200 bg-violet-50 text-violet-700",
-  closed: "border-slate-200 bg-slate-100 text-slate-600",
-};
-const GITHUB_REFRESH_INTERVAL_MS = 5 * 60_000;
+const PAGE_SIZE = 25
+const REFRESH_INTERVAL_MS = 10_000
 
-interface LivePullRequestState {
-  state: UpstreamPullRequestState;
-  checkedAt: string | null;
-  stale: boolean;
+interface CompletedSolutionsTableProps {
+  onSelect?: (item: ProjectWorkItem) => void
 }
 
-function initialPullRequestStates(): Record<string, LivePullRequestState> {
-  return Object.fromEntries(
-    COMPLETED_SOLUTIONS.map((solution) => [
-      solution.id,
-      { state: solution.upstreamState, checkedAt: null, stale: true },
-    ]),
-  );
-}
+export function CompletedSolutionsTable({ onSelect }: CompletedSolutionsTableProps) {
+  const [page, setPage] = useState(0)
+  const [solutions, setSolutions] = useState<ProjectWorkListResponse | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const inFlight = useRef(false)
 
-function useLivePullRequestStates() {
-  const [states, setStates] = useState(initialPullRequestStates);
-  const [refreshing, setRefreshing] = useState(false);
-  const inFlight = useRef(false);
-  const mounted = useRef(true);
-
-  const refresh = useCallback(async () => {
-    if (inFlight.current) return;
-    inFlight.current = true;
-    setRefreshing(true);
-    try {
-      const response = await api.getProjectPullRequestStatuses(
-        COMPLETED_SOLUTIONS.map((solution) => ({
-          key: solution.id,
-          repository: solution.repository,
-          number: solution.pullRequestNumber,
-        })),
-      );
-      if (!mounted.current) return;
-      const results = new Map(
-        response.statuses.map((status) => [status.key, status]),
-      );
-      setStates((current) => {
-        const next = { ...current };
-        COMPLETED_SOLUTIONS.forEach((solution) => {
-          const result: ProjectPullRequestStatus | undefined = results.get(
-            solution.id,
-          );
-          if (result && result.state !== "unknown") {
-            next[solution.id] = {
-              state: result.state,
-              checkedAt: result.checked_at,
-              stale: false,
-            };
-          } else {
-            next[solution.id] = { ...next[solution.id], stale: true };
-          }
-        });
-        return next;
-      });
-    } catch {
-      if (mounted.current) {
-        setStates((current) =>
-          Object.fromEntries(
-            Object.entries(current).map(([key, status]) => [
-              key,
-              { ...status, stale: true },
-            ]),
-          ),
-        );
+  const refresh = useCallback(
+    async (background = false) => {
+      if (inFlight.current) return
+      inFlight.current = true
+      if (background) setRefreshing(true)
+      else setLoading(true)
+      try {
+        const next = await api.listProjectWorkItems({
+          status: ['done'],
+          limit: PAGE_SIZE,
+          offset: page * PAGE_SIZE
+        })
+        setSolutions(next)
+        const lastPage = Math.max(0, Math.ceil(next.counts.done / PAGE_SIZE) - 1)
+        if (page > lastPage) setPage(lastPage)
+        setError(null)
+      } catch (reason) {
+        setError(reason instanceof Error ? reason.message : String(reason))
+      } finally {
+        setLoading(false)
+        setRefreshing(false)
+        inFlight.current = false
       }
-    } finally {
-      if (mounted.current) setRefreshing(false);
-      inFlight.current = false;
-    }
-  }, []);
+    },
+    [page]
+  )
 
   useEffect(() => {
-    mounted.current = true;
+    let active = true
     const refreshWhenVisible = () => {
-      if (document.visibilityState === "visible") void refresh();
-    };
+      if (active && document.visibilityState === 'visible') {
+        void refresh(true)
+      }
+    }
+
     queueMicrotask(() => {
-      if (mounted.current) void refresh();
-    });
-    const timer = window.setInterval(refreshWhenVisible, GITHUB_REFRESH_INTERVAL_MS);
-    window.addEventListener("focus", refreshWhenVisible);
-    document.addEventListener("visibilitychange", refreshWhenVisible);
+      if (active) void refresh()
+    })
+    const timer = window.setInterval(refreshWhenVisible, REFRESH_INTERVAL_MS)
+    window.addEventListener('focus', refreshWhenVisible)
+    document.addEventListener('visibilitychange', refreshWhenVisible)
     return () => {
-      window.clearInterval(timer);
-      window.removeEventListener("focus", refreshWhenVisible);
-      document.removeEventListener("visibilitychange", refreshWhenVisible);
-      mounted.current = false;
-    };
-  }, [refresh]);
+      active = false
+      window.clearInterval(timer)
+      window.removeEventListener('focus', refreshWhenVisible)
+      document.removeEventListener('visibilitychange', refreshWhenVisible)
+    }
+  }, [refresh])
 
-  return { states, refreshing, refresh };
-}
+  const total = solutions?.counts.done ?? 0
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const firstItem = total ? page * PAGE_SIZE + 1 : 0
+  const lastItem = Math.min((page + 1) * PAGE_SIZE, total)
 
-function SolutionStatus() {
-  return (
-    <span
-      data-solution-status="done"
-      className="project-data inline-flex items-center gap-1 rounded-full border border-green-200 bg-green-50 px-2 py-0.5 text-[9px] font-semibold text-green-700"
-    >
-      <CheckCircle2 className="h-3 w-3" />
-      DONE
-    </span>
-  );
-}
-
-function UpstreamStatus({
-  status,
-}: {
-  status: LivePullRequestState;
-}) {
-  const title = status.stale
-    ? "Showing the last known state; GitHub refresh is pending or unavailable."
-    : `Live GitHub state checked ${new Date(status.checkedAt ?? "").toLocaleString()}`;
-  return (
-    <span
-      data-upstream-state={status.state}
-      title={title}
-      className={cn(
-        "project-data inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase",
-        UPSTREAM_TONES[status.state],
-      )}
-    >
-      <GitPullRequest className="h-3 w-3" />
-      PR {status.state}
-      <span
-        aria-label={status.stale ? "Status not yet refreshed" : "Live GitHub status"}
-        className={cn(
-          "h-1.5 w-1.5 rounded-full",
-          status.stale ? "bg-current opacity-40" : "bg-emerald-500",
-        )}
-      />
-    </span>
-  );
-}
-
-function PullRequestLink({ solution }: { solution: CompletedSolution }) {
-  return (
-    <a
-      href={solution.pullRequestUrl}
-      target="_blank"
-      rel="noreferrer"
-      className="project-id inline-flex items-center gap-1 font-semibold text-blue-600 hover:underline"
-    >
-      #{solution.pullRequestNumber}
-      <ExternalLink className="h-3 w-3" />
-    </a>
-  );
-}
-
-export function CompletedSolutionsTable() {
-  const { states, refreshing, refresh } = useLivePullRequestStates();
   return (
     <ProjectPanel
-      title={`Completed solutions · ${COMPLETED_SOLUTIONS.length}`}
-      subtitle="Delivered fixes with their current upstream pull-request state"
+      title={`Completed solutions · ${total}`}
+      subtitle="Every Work item that completed both independent review stages"
       action={
         <button
           type="button"
-          onClick={() => void refresh()}
-          disabled={refreshing}
+          onClick={() => void refresh(true)}
+          disabled={loading || refreshing}
           className="inline-flex items-center gap-1 text-[10px] font-semibold text-muted-foreground transition hover:text-blue-600 disabled:opacity-50"
-          aria-label="Refresh GitHub pull request states"
+          aria-label="Refresh completed solutions"
         >
-          <RefreshCw className={cn("h-3 w-3", refreshing && "animate-spin")} />
-          GitHub
+          <RefreshCw className={cn('h-3 w-3', (loading || refreshing) && 'animate-spin')} />
+          Live
         </button>
       }
     >
+      {error ? (
+        <div role="alert" className="border-b border-red-200 bg-red-50 px-4 py-3 text-xs text-red-700">
+          {error}
+        </div>
+      ) : null}
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[760px] text-left text-[11px]">
-          <thead className="border-b border-border bg-muted/30 text-[9px] uppercase tracking-[0.08em] text-muted-foreground">
-            <tr>
-              <th className="px-4 py-2.5 font-semibold">Repository / PR</th>
-              <th className="px-3 py-2.5 font-semibold">Completed solution</th>
-              <th className="px-3 py-2.5 font-semibold">Resolution</th>
-              <th className="px-4 py-2.5 font-semibold">Upstream</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {COMPLETED_SOLUTIONS.map((solution) => (
-              <tr
-                key={solution.id}
-                data-completed-solution={solution.id}
-                className="transition hover:bg-muted/30"
-              >
-                <td className="px-4 py-3 align-top">
-                  <p className="font-semibold">{solution.repository}</p>
-                  <p className="mt-1 text-[10px]">
-                    <PullRequestLink solution={solution} />
-                  </p>
-                </td>
-                <td className="max-w-[38rem] px-3 py-3 align-top">
-                  <p className="font-semibold">{solution.title}</p>
-                  <p className="mt-1 leading-5 text-muted-foreground">
-                    {solution.summary}
-                  </p>
-                </td>
-                <td className="px-3 py-3 align-top">
-                  <SolutionStatus />
-                </td>
-                <td className="px-4 py-3 align-top">
-                  <UpstreamStatus status={states[solution.id]} />
-                </td>
+        {loading && !solutions ? (
+          <div className="flex min-h-48 items-center justify-center">
+            <Spinner />
+          </div>
+        ) : (
+          <table className="w-full min-w-[900px] text-left text-[11px]">
+            <thead className="border-b border-border bg-muted/30 text-[9px] uppercase tracking-[0.08em] text-muted-foreground">
+              <tr>
+                <th className="px-4 py-2.5 font-semibold">Repository / Issue</th>
+                <th className="px-3 py-2.5 font-semibold">Completed solution</th>
+                <th className="px-3 py-2.5 font-semibold">Final state</th>
+                <th className="px-3 py-2.5 font-semibold">Evidence identity</th>
+                <th className="px-4 py-2.5 text-right font-semibold">Completed</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {solutions?.work_items.length ? (
+                solutions.work_items.map(item => (
+                  <tr
+                    key={item.work_item_id}
+                    data-completed-solution={item.work_item_id}
+                    onClick={() => onSelect?.(item)}
+                    className={cn('transition hover:bg-muted/30', onSelect && 'cursor-pointer')}
+                  >
+                    <td className="px-4 py-3 align-top">
+                      <p className="font-semibold">{item.repository}</p>
+                      <a
+                        href={item.issue_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={event => event.stopPropagation()}
+                        className="project-id mt-1 inline-flex items-center gap-1 font-semibold text-blue-600 hover:underline"
+                      >
+                        Issue #{item.issue_number}
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
+                    </td>
+                    <td className="max-w-[34rem] px-3 py-3 align-top">
+                      <p className="font-semibold">{item.title}</p>
+                      <p className="mt-1 line-clamp-2 leading-5 text-muted-foreground">
+                        {item.plan?.summary ?? item.current_step}
+                      </p>
+                    </td>
+                    <td className="px-3 py-3 align-top">
+                      <WorkStatusBadge status={item.status} />
+                      <p className="mt-2 inline-flex items-center gap-1 text-[9px] text-muted-foreground">
+                        <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                        Reviews approved
+                      </p>
+                    </td>
+                    <td className="px-3 py-3 align-top">
+                      <p className="project-id max-w-52 truncate text-[9px]">
+                        {item.internal_candidate_id ?? item.work_item_id}
+                      </p>
+                      <p className="project-data mt-1 text-[9px] text-muted-foreground">
+                        attempt {item.execution_attempt || 1}
+                      </p>
+                    </td>
+                    <td className="project-data whitespace-nowrap px-4 py-3 text-right text-[9px] text-muted-foreground">
+                      {formatProjectTime(item.completed_at ?? item.updated_at)}
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={5} className="px-4 py-14 text-center text-xs text-muted-foreground">
+                    <Clock3 className="mx-auto mb-3 h-6 w-6 opacity-50" />
+                    No completed Work has been recorded yet.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        )}
       </div>
-    </ProjectPanel>
-  );
-}
-
-export function CompletedSolutionsCards() {
-  const { states, refreshing, refresh } = useLivePullRequestStates();
-  return (
-    <ProjectPanel
-      title={`Completed solutions · ${COMPLETED_SOLUTIONS.length}`}
-      subtitle="Finished engineering outcomes remain separate from the live Work queue"
-      action={
-        <button
+      <footer className="flex items-center justify-between border-t border-border px-4 py-2.5">
+        <Button
+          ghost
+          size="icon"
           type="button"
-          onClick={() => void refresh()}
-          disabled={refreshing}
-          className="inline-flex items-center gap-1 text-[10px] font-semibold text-muted-foreground transition hover:text-blue-600 disabled:opacity-50"
-          aria-label="Refresh GitHub pull request states"
+          disabled={page === 0 || loading}
+          onClick={() => setPage(value => Math.max(0, value - 1))}
+          aria-label="Previous completed solutions page"
         >
-          <RefreshCw className={cn("h-3 w-3", refreshing && "animate-spin")} />
-          GitHub
-        </button>
-      }
-      bodyClassName="grid gap-3 p-4 md:grid-cols-2 2xl:grid-cols-4"
-    >
-      {COMPLETED_SOLUTIONS.map((solution) => (
-        <article
-          key={solution.id}
-          data-completed-solution={solution.id}
-          className="rounded-md border border-border bg-slate-50/60 p-3"
+          <ChevronLeft />
+        </Button>
+        <span className="project-data text-[9px] text-muted-foreground">
+          {firstItem}–{lastItem} of {total} · page {page + 1} / {totalPages}
+        </span>
+        <Button
+          ghost
+          size="icon"
+          type="button"
+          disabled={page + 1 >= totalPages || loading}
+          onClick={() => setPage(value => value + 1)}
+          aria-label="Next completed solutions page"
         >
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0">
-              <p className="truncate text-[10px] font-semibold text-muted-foreground">
-                {solution.repository}
-              </p>
-              <p className="mt-1 text-[10px]">
-                <PullRequestLink solution={solution} />
-              </p>
-            </div>
-            <SolutionStatus />
-          </div>
-          <h3 className="mt-3 text-xs font-semibold leading-5">
-            {solution.title}
-          </h3>
-          <p className="mt-1 line-clamp-3 text-[10px] leading-4 text-muted-foreground">
-            {solution.summary}
-          </p>
-          <div className="mt-3">
-            <UpstreamStatus status={states[solution.id]} />
-          </div>
-        </article>
-      ))}
+          <ChevronRight />
+        </Button>
+      </footer>
     </ProjectPanel>
-  );
+  )
 }

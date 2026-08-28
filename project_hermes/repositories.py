@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from datetime import datetime
-from typing import Any, Literal, Protocol, Sequence
+from typing import Any, Literal, Mapping, Protocol, Sequence
 from urllib.parse import quote, urlsplit
 
 from pydantic import Field, field_validator, model_validator
@@ -31,14 +31,17 @@ class RepositoryBaseline(StrictModel):
 
     schema_version: Literal["repository-baseline.v1"] = "repository-baseline.v1"
     repository: str
+    github_repository: str | None = None
     clone_source: str
     default_branch: str
     baseline_sha: str
     resolved_at: datetime = Field(default_factory=utc_now)
 
-    @field_validator("repository")
+    @field_validator("repository", "github_repository")
     @classmethod
-    def validate_repository(cls, value: str) -> str:
+    def validate_repository(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
         parts = value.split("/")
         if (
             len(parts) != 2
@@ -63,7 +66,7 @@ class RepositoryBaseline(StrictModel):
     @model_validator(mode="after")
     def validate_clone_source(self) -> "RepositoryBaseline":
         parsed = urlsplit(self.clone_source)
-        expected_path = f"/{self.repository}.git"
+        expected_path = f"/{self.github_repository or self.repository}.git"
         if (
             parsed.scheme != "https"
             or parsed.hostname != "github.com"
@@ -96,6 +99,7 @@ class GitHubRepositoryResolver:
         client: RepositoryMetadataClient,
         *,
         repositories: Sequence[str],
+        repository_aliases: Mapping[str, str] | None = None,
     ) -> None:
         canonical = tuple(dict.fromkeys(repository.strip() for repository in repositories))
         if not canonical:
@@ -107,6 +111,30 @@ class GitHubRepositoryResolver:
         self._repository_names = {
             repository.casefold(): repository for repository in canonical
         }
+        aliases = {
+            repository.strip().casefold(): github_repository.strip()
+            for repository, github_repository in (repository_aliases or {}).items()
+        }
+        unknown_aliases = {
+            repository
+            for repository in aliases
+            if repository not in self._repository_names
+        }
+        if unknown_aliases:
+            raise ValueError(
+                "repository aliases are outside the configured polling scope"
+            )
+        self._github_repositories = {
+            key: aliases.get(key, repository)
+            for key, repository in self._repository_names.items()
+        }
+        for repository in self._github_repositories.values():
+            _validate_repository_name(repository)
+        if len({
+            repository.casefold()
+            for repository in self._github_repositories.values()
+        }) != len(self._github_repositories):
+            raise ValueError("repository aliases contain duplicate GitHub targets")
 
     def resolve(self, repository: str) -> RepositoryBaseline:
         """Resolve canonical clone URL, default branch, and current commit SHA."""
@@ -117,26 +145,33 @@ class GitHubRepositoryResolver:
             raise ValueError(
                 "repository is outside the configured polling scope"
             ) from exc
-        raw_repository, _headers = self.client.get(f"/repos/{canonical}")
+        github_repository = self._github_repositories[canonical.casefold()]
+        raw_repository, _headers = self.client.get(f"/repos/{github_repository}")
         if not isinstance(raw_repository, dict):
             raise ValueError("GitHub repository metadata must be an object")
         if str(raw_repository.get("full_name") or "").casefold() != (
-            canonical.casefold()
+            github_repository.casefold()
         ):
             raise ValueError("GitHub repository identity differs from requested scope")
         clone_source = str(raw_repository.get("clone_url") or "")
         default_branch = str(raw_repository.get("default_branch") or "")
-        _validate_clone_source(canonical, clone_source)
+        _validate_clone_source(github_repository, clone_source)
         default_branch = _validate_branch(default_branch)
 
         raw_commit, _headers = self.client.get(
-            f"/repos/{canonical}/commits/{quote(default_branch, safe='')}"
+            f"/repos/{github_repository}/commits/"
+            f"{quote(default_branch, safe='')}"
         )
         if not isinstance(raw_commit, dict):
             raise ValueError("GitHub commit metadata must be an object")
         baseline_sha = str(raw_commit.get("sha") or "")
         return RepositoryBaseline(
             repository=canonical,
+            github_repository=(
+                github_repository
+                if github_repository.casefold() != canonical.casefold()
+                else None
+            ),
             clone_source=clone_source,
             default_branch=default_branch,
             baseline_sha=baseline_sha,
@@ -163,6 +198,16 @@ def _validate_clone_source(repository: str, value: str) -> None:
         raise ValueError(
             "GitHub clone source is not the canonical credential-free URL"
         )
+
+
+def _validate_repository_name(value: str) -> None:
+    parts = value.split("/")
+    if (
+        len(parts) != 2
+        or not all(parts)
+        or any(not re.fullmatch(r"[A-Za-z0-9_.-]+", part) for part in parts)
+    ):
+        raise ValueError("repository aliases must use owner/name form")
 
 
 def _validate_branch(value: str) -> str:

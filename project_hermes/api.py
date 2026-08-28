@@ -7,7 +7,7 @@ import inspect
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Literal, TypeVar, cast
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from pydantic import Field, field_validator, model_validator
 
 from project_hermes.accounting import (
@@ -182,6 +182,7 @@ ActionContextProvider = Callable[
 T = TypeVar("T")
 PollingTrigger = Callable[[], Any]
 SupervisorStatusProvider = Callable[[], Any]
+SupervisorHealthProvider = Callable[[], dict[str, object]]
 IssueSelector = Callable[[str, str], WorkItem]
 IssueRescreener = Callable[[str, str, str, list[str]], Any]
 WorkItemRetrier = Callable[[str, str, str], WorkItem]
@@ -202,6 +203,7 @@ def build_project_hermes_router(
     polling: SqlitePollingStore | None = None,
     polling_trigger: PollingTrigger | None = None,
     supervisor_status: SupervisorStatusProvider | None = None,
+    supervisor_health: SupervisorHealthProvider | None = None,
     issue_selector: IssueSelector | None = None,
     issue_rescreener: IssueRescreener | None = None,
     work_item_retrier: WorkItemRetrier | None = None,
@@ -209,6 +211,7 @@ def build_project_hermes_router(
     pull_request_status_resolver: PullRequestStatusResolver | None = None,
     operator_selection_required: bool = False,
     screening_selection_required: bool = False,
+    polling_window_days: int = 30,
 ) -> APIRouter:
     """Build routes that require host-provided authentication and context."""
 
@@ -219,6 +222,23 @@ def build_project_hermes_router(
 
     async def context(run_id: str) -> ActionContext:
         return await _resolve(action_context(run_id))
+
+    @router.get("/health")
+    async def get_project_hermes_health(
+        response: Response,
+        actor: ApiPrincipal = Depends(principal),
+    ) -> dict[str, object]:
+        del actor
+        if supervisor_health is None:
+            response.status_code = 503
+            return {
+                "ok": False,
+                "reasons": ["ProjectHermes supervisor is not configured"],
+            }
+        payload = supervisor_health()
+        if not bool(payload.get("ok")):
+            response.status_code = 503
+        return payload
 
     @router.get("/polling")
     async def get_polling_overview(
@@ -242,6 +262,7 @@ def build_project_hermes_router(
         payload["screening_selection_required"] = (
             screening_selection_required
         )
+        payload["polling_window_days"] = polling_window_days
         return payload
 
     @router.post("/github/pull-request-statuses")

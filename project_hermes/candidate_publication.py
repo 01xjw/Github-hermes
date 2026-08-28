@@ -179,6 +179,7 @@ def _find_pull_request(
     runner: CommandRunner,
     cwd: Path,
     candidate: InternalPullRequestCandidate,
+    github_repository: str,
 ) -> dict[str, Any] | None:
     output = _gh(
         runner,
@@ -186,7 +187,7 @@ def _find_pull_request(
         "pr",
         "list",
         "--repo",
-        candidate.repository,
+        github_repository,
         "--head",
         candidate.head_ref,
         "--state",
@@ -265,6 +266,7 @@ def publish_internal_pull_request(
     *,
     mirror_path: str | Path,
     remote_url: str | None = None,
+    github_repository: str | None = None,
     runner: CommandRunner = _run_command,
 ) -> dict[str, Any]:
     """Push the frozen candidate diff and create (or return) its Draft PR."""
@@ -276,7 +278,13 @@ def publish_internal_pull_request(
     if shutil.which("git") is None or shutil.which("gh") is None:
         raise RuntimeError("publishing requires authenticated git and gh commands")
 
-    canonical_remote = remote_url or f"https://github.com/{candidate.repository}.git"
+    resolved_github_repository = github_repository or candidate.repository
+    if not _REPOSITORY_RE.fullmatch(resolved_github_repository):
+        raise ValueError("GitHub repository must use owner/name form")
+    canonical_remote = (
+        remote_url
+        or f"https://github.com/{resolved_github_repository}.git"
+    )
     with tempfile.TemporaryDirectory(
         prefix=".project-hermes-publish-",
         dir=mirror.parent,
@@ -378,7 +386,12 @@ def publish_internal_pull_request(
         )
         local_sha = _git(runner, checkout, "rev-parse", "HEAD").strip()
 
-        existing = _find_pull_request(runner, checkout, candidate)
+        existing = _find_pull_request(
+            runner,
+            checkout,
+            candidate,
+            resolved_github_repository,
+        )
         remote_sha = _remote_branch_sha(runner, checkout, candidate.head_ref)
         if remote_sha:
             _assert_remote_tree_matches(runner, checkout, remote_sha, local_sha)
@@ -410,7 +423,7 @@ def publish_internal_pull_request(
                 "pr",
                 "create",
                 "--repo",
-                candidate.repository,
+                resolved_github_repository,
                 "--draft",
                 "--base",
                 candidate.base_ref,
@@ -422,11 +435,21 @@ def publish_internal_pull_request(
                 str(body_path),
             )
         except RuntimeError:
-            raced = _find_pull_request(runner, checkout, candidate)
+            raced = _find_pull_request(
+                runner,
+                checkout,
+                candidate,
+                resolved_github_repository,
+            )
             if raced is not None:
                 return raced
             raise
-        created = _find_pull_request(runner, checkout, candidate)
+        created = _find_pull_request(
+            runner,
+            checkout,
+            candidate,
+            resolved_github_repository,
+        )
         if created is not None:
             return created
         url = next(

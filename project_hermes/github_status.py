@@ -82,6 +82,7 @@ def resolve_pull_request_statuses(
     references: Sequence[Mapping[str, Any]],
     *,
     fallback_client: GitHubReader | None = None,
+    repository_aliases: Mapping[str, str] | None = None,
 ) -> list[dict[str, Any]]:
     """Resolve PR identities, retrying public reads without credentials.
 
@@ -90,16 +91,21 @@ def resolve_pull_request_statuses(
     requests anonymously while authenticated publication remains fail-closed.
     """
 
+    aliases = {
+        repository.casefold(): github_repository
+        for repository, github_repository in (repository_aliases or {}).items()
+    }
     results: list[dict[str, Any]] = []
     for reference in references:
         key = str(reference["key"])
         repository = str(reference["repository"])
+        github_repository = aliases.get(repository.casefold(), repository)
         try:
             try:
                 pull_request = _read_pull_request(
                     client,
                     reference,
-                    repository,
+                    github_repository,
                 )
             except GitHubError:
                 if fallback_client is None:
@@ -107,7 +113,7 @@ def resolve_pull_request_statuses(
                 pull_request = _read_pull_request(
                     fallback_client,
                     reference,
-                    repository,
+                    github_repository,
                 )
             status = (
                 _normalized_status(pull_request)

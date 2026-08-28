@@ -12,7 +12,7 @@ polling:
   enabled: true
   # Per-repository refresh cadence. Within a registry pass, the next
   # repository starts immediately after the previous bounded scan completes.
-  interval_seconds: 900
+  interval_seconds: 43200
   # Training phase: examine one repository's newly opened Issues from the
   # previous 30 days, then immediately rotate to the next repository.
   rolling_window_days: 30
@@ -23,7 +23,7 @@ polling:
   require_repository_skills: true
   # Guided training: scans and relevance checks stay automatic, but only an
   # Issue explicitly selected in the Dashboard may enter Main Hermes planning.
-  require_operator_selection: true
+  require_operator_selection: false
   # A fresh, tool-free DeepSeek Subagent screens every frozen Issue snapshot
   # with the generic machine-fit role before Dashboard admission is possible.
   issue_screening_enabled: true
@@ -49,7 +49,7 @@ polling:
     - "The base image does not install torchao, onnxruntime, diffusers, or sglang as Python packages; repository-supplied offline imports may still close those dependencies."
     - "A repository checkout can shadow installed packages; capability probes must use a clean working directory or an explicit import path."
   issue_screening_probe_consumer: "Authenticated guided-training operator using the explicit ProjectHermes re-screen action; the resulting immutable screening revision consumes the probe evidence."
-  require_screening_select_for_operator: true
+  require_screening_select_for_operator: false
   minimum_evidence_score: 4
   require_body: true
   exclude_labels: [duplicate, invalid, wontfix, question]
@@ -76,10 +76,14 @@ polling:
   manager_idle_interval_seconds: 300
   manager_error_retry_seconds: 300
   manager_protocol_retry_seconds: 30
+  # Self-heal only after 90 minutes without a loop heartbeat. DeepSeek and the
+  # two sequential Reviewer sessions may legitimately run for many minutes.
+  supervisor_stall_timeout_seconds: 5400
   worker_capacity_retry_base_seconds: 300
   worker_capacity_retry_max_seconds: 3600
   repositories:
     - repository: ROCm/ROCm
+      github_repository: ROCm/legacy-rocm-build
       relevance_policy: amd_native
       skill_name: solve-rocm-rocm
     - repository: ROCm/composable_kernel
@@ -160,7 +164,7 @@ hermes:
     reasoning_effort: null
     context_window: 1000000
   # Worker continuity summaries share the reviewed official DeepSeek route
-  # with the Plan agent, but remain a stateless conversation.
+  # agent, but remain a stateless conversation.
   worker_handoff_profile:
     profile: worker-handoff
     model: deepseek-v4-pro

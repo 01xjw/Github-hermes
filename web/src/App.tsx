@@ -94,7 +94,6 @@ const ChatPage = lazy(() => import("@/pages/ChatPage"));
 const ProjectOverviewPage = lazy(
   () => import("@/pages/ProjectOverviewPage"),
 );
-const IssuesPage = lazy(() => import("@/pages/IssuesPage"));
 const WorkPage = lazy(() => import("@/pages/WorkPage"));
 const ChangesPage = lazy(() => import("@/pages/ChangesPage"));
 const LegacyHermesPage = lazy(() => import("@/pages/LegacyHermesPage"));
@@ -129,6 +128,10 @@ function RootRedirect() {
   return <Navigate to="/overview" replace />;
 }
 
+function IssuesRedirect() {
+  return <Navigate to="/work" replace />;
+}
+
 function UnknownRouteFallback({ pluginsLoading }: { pluginsLoading: boolean }) {
   if (pluginsLoading) {
     // Render nothing during the plugin-load window — a spinner here would just flash.
@@ -158,7 +161,7 @@ const CHAT_NAV_ITEM: NavItem = {
 const BUILTIN_ROUTES_CORE: Record<string, ComponentType> = {
   "/": RootRedirect,
   "/overview": ProjectOverviewPage,
-  "/issues": IssuesPage,
+  "/issues": IssuesRedirect,
   "/work": WorkPage,
   "/changes": ChangesPage,
   "/legacy": LegacyHermesPage,
@@ -195,11 +198,6 @@ const BUILTIN_NAV_REST: NavItem[] = [
     path: "/overview",
     label: "Overview",
     icon: Activity,
-  },
-  {
-    path: "/issues",
-    label: "Issues",
-    icon: Bug,
   },
   {
     path: "/work",

@@ -164,6 +164,10 @@ def mount_project_hermes(
     if resolved_config is None:
         return None
     config = load_config(resolved_config)
+    repository_github_names = {
+        repository.repository.casefold(): repository.resolved_github_repository
+        for repository in config.polling.repositories
+    }
     runs = open_run_store(config.control_plane)
     assurance = open_assurance_store(config.control_plane)
     accounting = open_accounting_store(config.control_plane)
@@ -254,6 +258,13 @@ def mount_project_hermes(
                 for repository in config.polling.repositories
                 if repository.enabled
             ),
+            repository_aliases={
+                repository.repository: repository.resolved_github_repository
+                for repository in config.polling.repositories
+                if repository.enabled
+                and repository.resolved_github_repository.casefold()
+                != repository.repository.casefold()
+            },
         )
     handlers: dict[ActionKind, Any] = {
         ActionKind.REQUEST_REVIEW: review_request_handler(
@@ -365,6 +376,9 @@ def mount_project_hermes(
             reviewer_error_retry_seconds=(
                 config.polling.manager_error_retry_seconds
             ),
+            stall_timeout_seconds=(
+                config.polling.supervisor_stall_timeout_seconds
+            ),
         )
 
     def authenticate(request: Request) -> ApiPrincipal:
@@ -408,6 +422,10 @@ def mount_project_hermes(
         return publish_internal_pull_request(
             candidate,
             mirror_path=matching[0].mirror_path,
+            github_repository=repository_github_names.get(
+                candidate.repository.casefold(),
+                candidate.repository,
+            ),
         )
 
     app.include_router(
@@ -429,6 +447,9 @@ def mount_project_hermes(
                 (lambda: supervisor.status)
                 if supervisor is not None
                 else None
+            ),
+            supervisor_health=(
+                supervisor.liveness if supervisor is not None else None
             ),
             issue_selector=(
                 lambda candidate_id, subject: polling.select_candidate_for_work(
@@ -474,6 +495,7 @@ def mount_project_hermes(
                         github_status_client,
                         references,
                         fallback_client=github_status_fallback_client,
+                        repository_aliases=repository_github_names,
                     )
                 )
                 if github_status_client is not None
@@ -485,6 +507,7 @@ def mount_project_hermes(
             screening_selection_required=(
                 config.polling.require_screening_select_for_operator
             ),
+            polling_window_days=config.polling.rolling_window_days,
         ),
         prefix="/api",
     )

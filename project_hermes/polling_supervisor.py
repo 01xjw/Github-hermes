@@ -29,6 +29,10 @@ class PollingSupervisorStatus(StrictModel):
     last_reconciled_at: datetime | None = None
     last_reviewed_at: datetime | None = None
     last_screened_at: datetime | None = None
+    polling_heartbeat_at: datetime | None = None
+    manager_heartbeat_at: datetime | None = None
+    reviewer_heartbeat_at: datetime | None = None
+    screening_heartbeat_at: datetime | None = None
     last_error: str | None = None
     last_review_error: str | None = None
     last_screening_error: str | None = None
@@ -46,17 +50,21 @@ class PollingSupervisor:
         reviewer: InternalCandidateReviewService | None = None,
         screener: IssueScreeningService | None = None,
         reviewer_error_retry_seconds: float = 300,
+        stall_timeout_seconds: float = 5400,
     ) -> None:
         if loop_interval_seconds <= 0:
             raise ValueError("polling supervisor interval must be positive")
         if reviewer_error_retry_seconds <= 0:
             raise ValueError("reviewer retry interval must be positive")
+        if stall_timeout_seconds <= 0:
+            raise ValueError("supervisor stall timeout must be positive")
         self.polling = polling
         self.manager = manager
         self.reviewer = reviewer
         self.screener = screener
         self.loop_interval_seconds = loop_interval_seconds
         self.reviewer_error_retry_seconds = reviewer_error_retry_seconds
+        self.stall_timeout_seconds = stall_timeout_seconds
         self._stop = asyncio.Event()
         self._lifecycle_lock = asyncio.Lock()
         self._tasks: tuple[asyncio.Task[None], ...] = ()
@@ -66,13 +74,65 @@ class PollingSupervisor:
     def status(self) -> PollingSupervisorStatus:
         return self._status.model_copy(deep=True)
 
+    def liveness(self, *, now: datetime | None = None) -> dict[str, object]:
+        """Report whether every configured loop is alive and heartbeating."""
+
+        timestamp = now or utc_now()
+        reasons: list[str] = []
+        if not self._status.running:
+            reasons.append("supervisor is not running")
+        if self._status.stopping:
+            reasons.append("supervisor is stopping")
+        tasks = {task.get_name(): task for task in self._tasks}
+        expected = {
+            "project-hermes-polling-loop": self._status.polling_heartbeat_at,
+            "project-hermes-manager-loop": self._status.manager_heartbeat_at,
+        }
+        if self.reviewer is not None:
+            expected["project-hermes-reviewer-loop"] = (
+                self._status.reviewer_heartbeat_at
+            )
+        if self.screener is not None:
+            expected["project-hermes-screening-loop"] = (
+                self._status.screening_heartbeat_at
+            )
+        for name, heartbeat in expected.items():
+            task = tasks.get(name)
+            if task is None or task.done():
+                reasons.append(f"{name} is not running")
+                continue
+            if heartbeat is not None and (
+                timestamp - heartbeat
+            ).total_seconds() > self.stall_timeout_seconds:
+                reasons.append(f"{name} heartbeat is stale")
+        return {
+            "ok": not reasons,
+            "checked_at": timestamp.isoformat(),
+            "stall_timeout_seconds": self.stall_timeout_seconds,
+            "reasons": reasons,
+            "status": self.status.model_dump(mode="json"),
+        }
+
     async def start(self) -> None:
         async with self._lifecycle_lock:
             if any(not task.done() for task in self._tasks):
                 return
             self._stop = asyncio.Event()
+            started_at = utc_now()
             self._status = self._status.model_copy(
-                update={"running": True, "stopping": False, "last_error": None}
+                update={
+                    "running": True,
+                    "stopping": False,
+                    "last_error": None,
+                    "polling_heartbeat_at": started_at,
+                    "manager_heartbeat_at": started_at,
+                    "reviewer_heartbeat_at": (
+                        started_at if self.reviewer is not None else None
+                    ),
+                    "screening_heartbeat_at": (
+                        started_at if self.screener is not None else None
+                    ),
+                }
             )
             tasks = [
                 asyncio.create_task(
@@ -116,7 +176,9 @@ class PollingSupervisor:
 
     async def _run_polling(self) -> None:
         while not self._stop.is_set():
+            self._heartbeat("polling_heartbeat_at")
             polled = await self._safe_poll()
+            self._heartbeat("polling_heartbeat_at")
             # A completed repository scan may make the next least-recently
             # scanned repository due immediately. Continue the bounded
             # pipeline without waiting for the normal idle tick; queue
@@ -127,7 +189,9 @@ class PollingSupervisor:
 
     async def _run_manager(self) -> None:
         while not self._stop.is_set():
+            self._heartbeat("manager_heartbeat_at")
             advanced = await self._safe_manager()
+            self._heartbeat("manager_heartbeat_at")
             # State-changing actions should immediately expose the next
             # decision so Main Hermes can keep the configured worker lanes
             # occupied. A non-changing wait is deduplicated by ``advance``.
@@ -137,7 +201,9 @@ class PollingSupervisor:
 
     async def _run_reviewer(self) -> None:
         while not self._stop.is_set():
+            self._heartbeat("reviewer_heartbeat_at")
             reviewed, failed = await self._safe_review()
+            self._heartbeat("reviewer_heartbeat_at")
             if reviewed:
                 continue
             await self._wait_for_tick(
@@ -148,7 +214,9 @@ class PollingSupervisor:
 
     async def _run_screening(self) -> None:
         while not self._stop.is_set():
+            self._heartbeat("screening_heartbeat_at")
             screened, failed = await self._safe_screening()
+            self._heartbeat("screening_heartbeat_at")
             if screened:
                 continue
             await self._wait_for_tick(
@@ -272,6 +340,9 @@ class PollingSupervisor:
             update={"last_error": f"{prefix}: {detail}"[:500]}
         )
         _LOG.exception("%s: %s", prefix, detail)
+
+    def _heartbeat(self, field: str) -> None:
+        self._status = self._status.model_copy(update={field: utc_now()})
 
 
 __all__ = ["PollingSupervisor", "PollingSupervisorStatus"]

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import http.client
 import json
 import os
 import subprocess
@@ -10,7 +11,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any, Callable, Iterator, Literal
 from urllib.parse import urlparse
 
@@ -205,6 +206,89 @@ class GitHubClient:
                 continue
             yield item
 
+    def open_issues_created_between(
+        self,
+        repository: str,
+        window_start: datetime,
+        window_end: datetime,
+        *,
+        max_pages: int | None = None,
+    ) -> Iterator[dict[str, Any]]:
+        """Yield open Issues created in one bounded, half-open UTC window.
+
+        The repository Issues endpoint cannot seek to an older upper bound
+        without replaying every newer page. GitHub search can, so historical
+        backfill remains one bounded day at a time instead of becoming more
+        expensive as the cursor moves backward.
+        """
+
+        _split_repository(repository)
+        start = _utc_datetime(window_start)
+        end = _utc_datetime(window_end)
+        if start >= end:
+            raise ValueError("GitHub Issue search window must be increasing")
+
+        self.truncated = False
+        page = 1
+        yielded = 0
+        # GitHub's range qualifier is inclusive. Subtract one microsecond so
+        # adjacent half-open day windows never claim the same Issue.
+        inclusive_end = end - timedelta(microseconds=1)
+        query = (
+            f"repo:{repository} is:issue is:open "
+            f"created:{_github_search_time(start)}.."
+            f"{_github_search_time(inclusive_end)}"
+        )
+        while True:
+            payload, _headers = self.get(
+                "/search/issues",
+                {
+                    "q": query,
+                    "sort": "created",
+                    "order": "desc",
+                    "per_page": 100,
+                    "page": page,
+                },
+            )
+            if not isinstance(payload, dict) or not isinstance(
+                payload.get("items"), list
+            ):
+                raise GitHubError(
+                    "GitHub Issue search returned an invalid response"
+                )
+            items = payload["items"]
+            for item in items:
+                if not isinstance(item, dict):
+                    raise GitHubError(
+                        "GitHub Issue search returned a non-object item"
+                    )
+                if "pull_request" in item or item.get("state") != "open":
+                    continue
+                created_raw = item.get("created_at")
+                if not created_raw:
+                    continue
+                created_at = parse_github_time(str(created_raw))
+                if start <= created_at < end:
+                    yielded += 1
+                    yield item
+
+            total = payload.get("total_count")
+            total_count = total if isinstance(total, int) and total >= 0 else yielded
+            incomplete = payload.get("incomplete_results") is True
+            available = min(total_count, 1000)
+            exhausted = not items or page * 100 >= available
+            if incomplete:
+                self.truncated = True
+                return
+            if exhausted:
+                if yielded < total_count and total_count > 1000:
+                    self.truncated = True
+                return
+            if max_pages is not None and page >= max_pages:
+                self.truncated = True
+                return
+            page += 1
+
     def linked_pull_requests(
         self,
         repository: str,
@@ -370,6 +454,41 @@ class GitHubClient:
                 }
                 self._update_status(response_headers)
                 body = error.read().decode("utf-8", errors="replace")
+                if (
+                    method == "GET"
+                    and self.token
+                    and error.code in {403, 404}
+                ):
+                    # Some public organizations reject classic PATs and may
+                    # deliberately return either 403 or 404. Retrying the same
+                    # read without Authorization preserves authenticated quota
+                    # everywhere else while keeping GraphQL and every write
+                    # operation fail-closed.
+                    fallback = GitHubClient(
+                        token="",
+                        max_retries=self.max_retries,
+                        timeout_seconds=self.timeout_seconds,
+                        api_root=self.api_root,
+                        opener=self._opener,
+                        sleeper=self._sleep,
+                        clock=self._clock,
+                    )
+                    try:
+                        result = fallback._request_json(
+                            path_or_url,
+                            params=params,
+                            method=method,
+                            payload=payload,
+                        )
+                    except GitHubError as fallback_error:
+                        raise GitHubError(
+                            f"GitHub authenticated read returned HTTP "
+                            f"{error.code} for {url}; anonymous public-read "
+                            f"fallback failed: {fallback_error}"
+                        ) from error
+                    self._update_status(result[1])
+                    self.status.requests += fallback.status.requests
+                    return result
                 if error.code in {403, 429} and attempt < self.max_retries:
                     self._wait_for_limit(response_headers, attempt)
                     continue
@@ -380,7 +499,11 @@ class GitHubClient:
                     f"GitHub API returned HTTP {error.code} for {url}: "
                     f"{body[:500]}"
                 ) from error
-            except (urllib.error.URLError, TimeoutError) as error:
+            except (
+                http.client.IncompleteRead,
+                urllib.error.URLError,
+                TimeoutError,
+            ) as error:
                 if attempt < self.max_retries:
                     self._sleep(2**attempt)
                     continue
@@ -504,6 +627,20 @@ def parse_github_time(value: str) -> datetime:
     if parsed.tzinfo is None:
         raise ValueError("GitHub timestamp must include a timezone")
     return parsed.astimezone(UTC)
+
+
+def _utc_datetime(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        raise ValueError("GitHub Issue search timestamps must be timezone-aware")
+    return value.astimezone(UTC)
+
+
+def _github_search_time(value: datetime) -> str:
+    return (
+        _utc_datetime(value)
+        .isoformat(timespec="seconds")
+        .replace("+00:00", "Z")
+    )
 
 
 def _split_repository(repository: str) -> tuple[str, str]:

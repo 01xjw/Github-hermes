@@ -2138,7 +2138,7 @@ export interface InternalPullRequestCandidateListResponse {
 
 export type PollingTaskStatus = "idle" | "running" | "partial" | "failed";
 export type PollingRunStatus = "running" | "completed" | "partial" | "failed";
-export type RepositoryScanStatus = "running" | "completed" | "failed";
+export type RepositoryScanStatus = "running" | "completed" | "partial" | "failed";
 export type ProjectWorkStatus =
   | "queued"
   | "planning"
@@ -2211,6 +2211,30 @@ export interface PollingRun {
   error: string | null;
 }
 
+export interface PollingRepositoryScan {
+  run_id: string;
+  cutoff: string;
+  window_end: string;
+  scan_mode: "rolling" | "fresh" | "backfill";
+  status: RepositoryScanStatus;
+  issues_seen: number;
+  candidates_matched: number;
+  work_items_queued: number;
+  started_at: string;
+  completed_at: string | null;
+  error: string | null;
+}
+
+export interface PollingRepositoryCoverageResults {
+  seen: number;
+  retained: number;
+  matched: number;
+  filtered: number;
+  selected: number;
+  work: number;
+  done: number;
+}
+
 export interface PollingRepositoryStat {
   repository_id: number;
   repository: string;
@@ -2223,6 +2247,11 @@ export interface PollingRepositoryStat {
   filtered: number;
   screening: ProjectScreeningCounts;
   work_items: number;
+  latest_scan: PollingRepositoryScan | null;
+  coverage_scan: PollingRepositoryScan | null;
+  coverage_stale: boolean;
+  coverage_results: PollingRepositoryCoverageResults;
+  results_updated_at: string | null;
 }
 
 export type ProjectScreeningDecision = "SELECT" | "DEFER" | "REJECT";
@@ -2257,6 +2286,10 @@ export interface PollingSupervisorStatus {
   last_reconciled_at: string | null;
   last_reviewed_at: string | null;
   last_screened_at: string | null;
+  polling_heartbeat_at: string | null;
+  manager_heartbeat_at: string | null;
+  reviewer_heartbeat_at: string | null;
+  screening_heartbeat_at: string | null;
   last_error: string | null;
   last_review_error: string | null;
   last_screening_error: string | null;
@@ -2285,6 +2318,7 @@ export interface PollingOverviewResponse {
   supervisor: PollingSupervisorStatus | null;
   operator_selection_required: boolean;
   screening_selection_required: boolean;
+  polling_window_days: number;
 }
 
 export interface PollingRunListResponse {

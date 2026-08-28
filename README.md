@@ -1,338 +1,264 @@
-# GitHub Hermes
-
 <p align="center">
-  <strong>A durable, review-gated GitHub engineering system built on Hermes Agent.</strong>
+  <img src="assets/banner.png" alt="Hermes Agent" width="100%">
 </p>
 
+# Hermes Agent ☤
 <p align="center">
-  <a href="https://github.com/NousResearch/hermes-agent"><img src="https://img.shields.io/badge/built%20on-Hermes%20Agent-6f42c1" alt="Built on Hermes Agent"></a>
-  <img src="https://img.shields.io/badge/Python-3.11--3.13-3776AB?logo=python&logoColor=white" alt="Python 3.11–3.13">
-  <img src="https://img.shields.io/badge/dashboard-React%20%2B%20TypeScript-149ECA?logo=react&logoColor=white" alt="React and TypeScript dashboard">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License"></a>
+  <a href="https://hermes-agent.nousresearch.com/">Hermes Agent</a> | <a href="https://hermes-agent.nousresearch.com/">Hermes Desktop</a>
+</p>
+<p align="center">
+  <a href="https://hermes-agent.nousresearch.com/docs/"><img src="https://img.shields.io/badge/Docs-hermes--agent.nousresearch.com-FFD700?style=for-the-badge" alt="Documentation"></a>
+  <a href="https://discord.gg/NousResearch"><img src="https://img.shields.io/badge/Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord"></a>
+  <a href="https://github.com/NousResearch/hermes-agent/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="License: MIT"></a>
+  <a href="https://nousresearch.com"><img src="https://img.shields.io/badge/Built%20by-Nous%20Research-blueviolet?style=for-the-badge" alt="Built by Nous Research"></a>
+  <a href="README.zh-CN.md"><img src="https://img.shields.io/badge/Lang-中文-red?style=for-the-badge" alt="中文"></a>
+  <a href="README.ur-pk.md"><img src="https://img.shields.io/badge/Lang-اردو-green?style=for-the-badge" alt="اردو"></a>
+  <a href="README.es.md"><img src="https://img.shields.io/badge/Lang-Español-orange?style=for-the-badge" alt="Español"></a>
 </p>
 
-GitHub Hermes continuously discovers useful GitHub Issues, turns operator-selected
-work into isolated Codex executions, and accepts a result only after two independent
-reviews approve the same immutable candidate. It combines an auditable control plane,
-a six-lane Kubernetes worker runtime, and an operations Dashboard for Issues, Work,
-internal pull-request candidates, and controlled Draft PR publication.
+**The self-improving AI agent built by [Nous Research](https://nousresearch.com).** It's the only agent with a built-in learning loop — it creates skills from experience, improves them during use, nudges itself to persist knowledge, searches its own past conversations, and builds a deepening model of who you are across sessions. Run it on a $5 VPS, a GPU cluster, or serverless infrastructure that costs nearly nothing when idle. It's not tied to your laptop — talk to it from Telegram while it works on a cloud VM.
 
-The upstream [NousResearch/Hermes-Agent](https://github.com/NousResearch/hermes-agent)
-runtime is encapsulated as GitHub Hermes's reasoning and interaction module. Upstream
-Hermes continues to provide conversations, model/provider routing, tools, skills,
-memory, delegation, and Dashboard infrastructure. The additive `project_hermes/`
-package owns GitHub orchestration, durable state, policy, isolated execution,
-evidence, review, and publication.
+Use any model you want — [Nous Portal](https://portal.nousresearch.com), OpenRouter, OpenAI, your own endpoint, and [many others](https://hermes-agent.nousresearch.com/docs/integrations/providers). Switch with `hermes model` — no code changes, no lock-in.
 
-> GitHub Hermes is designed to prepare and review changes autonomously while keeping
-> external publication under operator control. A Worker cannot push a branch or open
-> a pull request.
+<table>
+<tr><td><b>A real terminal interface</b></td><td>Full TUI with multiline editing, slash-command autocomplete, conversation history, interrupt-and-redirect, and streaming tool output.</td></tr>
+<tr><td><b>Lives where you do</b></td><td>Telegram, Discord, Slack, WhatsApp, Signal, and CLI — all from a single gateway process. Voice memo transcription, cross-platform conversation continuity.</td></tr>
+<tr><td><b>A closed learning loop</b></td><td>Agent-curated memory with periodic nudges. Autonomous skill creation after complex tasks. Skills self-improve during use. FTS5 session search with LLM summarization for cross-session recall. <a href="https://github.com/plastic-labs/honcho">Honcho</a> dialectic user modeling. Compatible with the <a href="https://agentskills.io">agentskills.io</a> open standard.</td></tr>
+<tr><td><b>Scheduled automations</b></td><td>Built-in cron scheduler with delivery to any platform. Daily reports, nightly backups, weekly audits — all in natural language, running unattended.</td></tr>
+<tr><td><b>Delegates and parallelizes</b></td><td>Spawn isolated subagents for parallel workstreams. Write Python scripts that call tools via RPC, collapsing multi-step pipelines into zero-context-cost turns.</td></tr>
+<tr><td><b>Runs anywhere, not just your laptop</b></td><td>Seven terminal backends — local, Docker, SSH, Singularity, Modal, Daytona, and Vercel Sandbox. Daytona and Modal offer serverless persistence — your agent's environment hibernates when idle and wakes on demand, costing nearly nothing between sessions. Run it on a $5 VPS or a GPU cluster.</td></tr>
+<tr><td><b>Research-ready</b></td><td>Batch trajectory generation, trajectory compression for training the next generation of tool-calling models.</td></tr>
+</table>
 
-## What it does
+---
 
-- Continuously scans configured repositories through a bounded, rate-limit-aware
-  GitHub Issue pipeline.
-- Applies mechanical filtering, deduplication, optional model screening, and explicit
-  operator selection before engineering work begins.
-- Gives Main Hermes a fresh durable projection and asks for one auditable
-  `plan`, `block`, or `wait` decision.
-- Starts committed plans deterministically, without asking the model to repeat the
-  same scheduling decision.
-- Runs up to six isolated Kubernetes Codex Workers, each with its own workspace,
-  execution identity, `CODEX_HOME`, and repository-specific Skill.
-- Ingests structured results and binds files, checks, commits, and evidence to an
-  exact candidate digest.
-- Runs the Minimal-diff Reviewer and Completion Auditor as independent fresh sessions,
-  sequentially, against the same frozen review packet.
-- Locks a candidate only when both reviewers return `APPROVE`.
-- Shows daily Issue intake and Work outcomes, full timelines, diffs, review state,
-  and live upstream PR state in the Dashboard.
-- Lets an operator publish an immutable approved candidate as a GitHub Draft PR after
-  confirming its lock digest.
+## Quick Install
 
-## Historical V1 validation snapshot
-
-The figures below are a fixed V1 validation snapshot as of **2026-08-21 13:54:52
-CST**. They are historical test results, not live Dashboard counters.
-
-| Metric | V1 result |
-| --- | ---: |
-| Repositories scanned | 18 |
-| Repository scan records | 1,414 (1,409 completed, 5 failed) |
-| Issue observations | 163,901 |
-| Unique retained candidates | 2,275 |
-| Work items created | 238 |
-| Candidates entering internal review | 120 |
-| Dual-`APPROVE` immutable candidates | 53 |
-| Strong PR-ready opportunities at the cutoff | 15 |
-| Stable expansion batch | 37/40 done (92.5%) |
-| Aiter and vLLM target batches | 9/9 done (3/3 + 6/6) |
-| Measured Worker concurrency | 6 |
-
-`Issue observations` counts repeated observations during rolling scans; it does not
-mean 163,901 unique Issues. The unique retained-candidate count is the deduplicated
-measure.
-
-At that historical cutoff, no PR had been submitted: V1 deliberately kept all GitHub
-publication credentials out of Workers. The current code preserves that boundary and
-adds a separate, operator-confirmed Draft PR publication path in the controller. The
-historical zero therefore must not be interpreted as the current product capability.
-
-## Architecture
-
-<p align="center">
-  <img src="assets/architecture.png" alt="GitHub Hermes orchestration architecture: six stages, four serial loops, three gates" width="100%">
-</p>
-
-`PollingSupervisor` runs four loops—polling, manager, reviewer, and screening. The
-loops may overlap in wall-clock time, but each loop has one serial lane. This keeps
-state transitions deterministic while allowing discovery, planning, review, and
-screening to progress independently.
-
-### How Hermes Agent is encapsulated
-
-| Layer | Responsibility |
-| --- | --- |
-| Upstream Hermes Agent | Conversations, model and provider routing, tools, skills, memory, delegation, CLI/TUI, and base Dashboard services. |
-| Main Hermes adapter | Creates a fresh capability-limited decision session from a bounded durable Work projection. |
-| Project Hermes control plane | Owns task contracts, authorization, lifecycle transitions, resources, evidence, candidate locks, and audit records. |
-| Codex Worker runtime | Performs repository work inside a task-private Kubernetes Job and returns structured artifacts without publication credentials. |
-| Independent reviewers | Judge minimal scope and completion in separate fresh, tool-free sessions. |
-| Operator boundary | Selects Issues where configured and explicitly authorizes publication of a locked candidate. |
-
-The integration is additive. Existing Hermes modules are not renamed or replaced;
-the Dashboard mounts Project Hermes only when a valid `project-hermes.yaml` is
-present.
-
-### Main integration interfaces
-
-| From | To / contract |
-| --- | --- |
-| `hermes_cli/web_server.py` | Calls `project_hermes.web_integration.mount_project_hermes` and mounts `/api/v2/project-hermes/`. |
-| `project_hermes.polling_supervisor.PollingSupervisor` | Coordinates the four durable service loops. |
-| `project_hermes/project_manager.py` | Loads the release-owned `project_hermes/AGENT.md` contract for each Main Hermes decision and sends committed work to `project_hermes/issue_launcher.py`. |
-| `project_hermes/issue_screening.py` | Loads `screening_profiles/environment-issue-screener/SOUL.md` and `AGENT.md`, binds their digests to each fresh screening session, and persists the structured decision. |
-| `project_hermes/issue_launcher.py` | Binds the selected `repository_skills/<skill>/SKILL.md` identity and digest into the locked task before launching its isolated Worker. |
-| `project_hermes/execution.py` | Delegates external execution to `project_hermes/kubernetes_jobs.py`. |
-| `deploy/release-worker/execute-task.py` | Produces the Worker `result.json` and artifact manifest consumed by the controller. |
-| `project_hermes/candidate_ingest.py` | Converts validated Worker output into an internal candidate for `candidate_review.py`. |
-| `project_hermes/candidate_review.py` | Loads each assigned `reviewer_profiles/<role>/SOUL.md` and `AGENT.md` pair, binds its digests to a fresh tool-free review, and records the verdict against the frozen candidate. |
-| `project_hermes/api.py` | Provides authenticated contracts consumed by `web/src/lib/api.ts`. |
-| `project_hermes/candidate_publication.py` | Reconstructs and publishes an approved candidate through the controller-owned GitHub boundary. |
-
-## End-to-end workflow
-
-1. The poller selects the least-recently scanned configured repository and reads a
-   bounded rolling Issue window.
-2. Mechanical policy filters irrelevant or unsupported work, deduplicates Issue
-   observations, and persists eligible candidates.
-3. The optional Environment Issue Screener returns `SELECT`, `DEFER`, or `REJECT`
-   for a frozen batch. An operator confirms selection when that gate is enabled.
-4. Main Hermes receives a fresh, bounded projection and emits exactly one planning
-   action. It does not directly mutate GitHub, worktrees, credentials, or cluster
-   resources.
-5. After a plan is committed, `_scheduled_start` advances it through the
-   deterministic controller path without another LLM decision.
-6. `IssueLauncher` locks the Issue snapshot, base SHA, plan, repository Skill, and
-   execution identity, then creates an isolated Kubernetes Worker.
-7. The Worker edits and tests its private checkout and returns versioned structured
-   output. It has no GitHub publication credentials.
-8. Candidate ingest validates the result and stores an evidence-bound internal PR
-   candidate.
-9. The reviewer loop runs the Minimal-diff Reviewer and Completion Auditor one at a
-   time in independent fresh sessions. Both must approve the same digest.
-10. A successful candidate becomes immutable and appears in **Internal PRs**. An
-    operator can inspect its diff and publish it as a Draft PR by confirming the
-    current lock digest.
-11. The Dashboard refreshes GitHub PR state as `draft`, `open`, `merged`, `closed`,
-    or `unknown`; only merged PRs receive the `Issue resolved` marker.
-
-## Dashboard guide
-
-| Page | Purpose |
-| --- | --- |
-| **Overview** | Operational summary, repository scan totals, queue and lane health, recent Work, completed solutions, and a daily chart for Issues collected, Work queued, and Work resolved. Daily boundaries use UTC. |
-| **Issues** | Search and filter retained Issues, inspect screening evidence, rescreen with bounded probe evidence, and select eligible Issues for Work. |
-| **Work** | Follow planning, Worker execution, review, retries, resource identities, errors, and the durable event timeline for each Work item. |
-| **Internal PRs** | Inspect validated candidates, files and diffs, reviewer verdicts, immutable lock state, live upstream PR state, and the operator-only Draft PR action. |
-| **Chat** | Use the original Hermes TUI through the Dashboard PTY/WebSocket bridge. |
-| **Hermes Tools** | Access upstream Hermes configuration, files, analytics, models, logs, skills, plugins, and system pages. |
-
-### Work and review states
-
-| State | Meaning |
-| --- | --- |
-| `queued` | Admitted to Work and waiting for Main Hermes. |
-| `planning` | Main Hermes is assessing the Issue or a reviewed revision is being prepared. |
-| `running` | An isolated Worker execution owns the task. |
-| `review` | A candidate exists and the sequential independent reviews are in progress. |
-| `done` | Both required reviewers approved the exact candidate and its lock is immutable. |
-| `blocked` | The system requires human intervention, rejected the candidate, or exhausted the allowed revision budget. It is not silently returned to the pool. |
-| `failed` | Planning, launch, execution, or infrastructure failed at a supported terminal boundary; eligible failures may be explicitly retried. |
-
-**Approval pending** is an internal-candidate review condition, not another active
-Worker lane. It means the exact candidate does not yet have both required approvals.
-The reviewer loop will process missing roles. `REVISION_REQUIRED` or
-`MORE_EVIDENCE_REQUIRED` returns the Work to Planning with a fresh execution identity;
-`REJECT` or an exhausted revision budget moves it to `blocked` for operator attention.
-
-## Repository layout
-
-```text
-project_hermes/                    GitHub control plane and runtime adapters
-  AGENT.md                         Main Hermes project-manager contract
-  polling*.py                     Discovery, persistence, and supervisor loops
-  project_manager.py              One-action reasoning and deterministic dispatch
-  issue_launcher.py               Locked task and isolated Worker launch
-  execution.py                    Execution coordination and durable records
-  kubernetes_jobs.py              Kubernetes Job backend
-  candidate_ingest.py             Worker result validation and candidate creation
-  candidate_review.py             Sequential independent review
-  candidate_publication.py        Operator-confirmed Draft PR publication
-  github_status.py                Live PR-state resolution with read-only fallback
-  api.py                           Versioned Project Hermes REST API
-  repository_skills/              One digest-locked Skill per configured repository
-    solve-<owner>-<repo>/
-      SKILL.md                     Repository-specific Worker instructions
-  screening_profiles/
-    environment-issue-screener/
-      AGENT.md                     Screening procedure and output contract
-      SOUL.md                      Independent screening judgment posture
-  reviewer_profiles/
-    minimal-diff-reviewer/
-      AGENT.md                     Minimal-diff review procedure and contract
-      SOUL.md                      Minimal-scope judgment posture
-    completion-auditor/
-      AGENT.md                     Completion-audit procedure and contract
-      SOUL.md                      Completion and evidence judgment posture
-web/src/                           React and TypeScript Dashboard
-deploy/kubernetes/                 Release-rendered Kubernetes resources
-deploy/release-worker/             Isolated Worker preparation and execution
-schemas/project-hermes/            Interoperability schemas
-tests/project_hermes/              Focused backend tests
-docs/project-hermes/               Architecture, contracts, operations, and security
-```
-
-Local development uses two durable SQLite projections: `polling.db` for repository
-scans, candidates, screening, Work, and manager state; and `control-plane.db` for
-tasks, graph nodes, executions, accounting, candidates, reviews, and evidence. These
-runtime databases and credentials are local state and must never be committed.
-
-## Quick start
-
-### Prerequisites
-
-- Python 3.11–3.13 and [uv](https://docs.astral.sh/uv/)
-- Node.js 22.22 or newer and a supported npm version for the Dashboard
-- Git
-- Optional: GitHub CLI for operator publication, and Kubernetes access for isolated
-  production Workers
-
-### Local control plane and Dashboard
+### Linux, macOS, WSL2, Termux
 
 ```bash
-git clone https://github.com/01xjw/Github-hermes.git
-cd Github-hermes
-
-uv sync --extra project-hermes
-uv run project-hermes init --config project-hermes.yaml
-uv run project-hermes validate-config project-hermes.yaml
-uv run project-hermes doctor project-hermes.yaml
-
-npm install --workspace web
-npm run build --workspace web
-uv run hermes dashboard
+curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash
 ```
 
-The generated configuration is fail-closed: Codex and Kubernetes execution are
-disabled until an operator configures reviewed credentials and runtime policy. If the
-configuration is stored elsewhere, set `PROJECT_HERMES_CONFIG` to its absolute path
-before starting the Dashboard.
+### Windows (native, PowerShell)
 
-Do not put API keys in `project-hermes.yaml`. Use a separate untracked credential file
-owned by the current user with mode `0600`, then reference it from the configuration.
-See the [operations guide](docs/project-hermes/operations.md) before enabling Codex or
-Kubernetes execution.
+> **Heads up:** Native Windows runs Hermes without WSL — CLI, gateway, TUI, and tools all work natively. If you'd rather use WSL2, the Linux/macOS one-liner above works there too. Found a bug? Please [file issues](https://github.com/NousResearch/hermes-agent/issues).
 
-## Security and publication boundary
+Run this in PowerShell:
 
-- The control plane—not a model—owns permissions, state transitions, worktrees,
-  resource leases, artifacts, publication, cleanup, and audit records.
-- Main Hermes is capability-limited and cannot publish. Worker Jobs receive neither a
-  GitHub credential nor a Kubernetes service-account token.
-- Every Worker receives one locked Issue, one immutable baseline, one repository
-  Skill, and one private execution identity.
-- Completion evidence and both reviews are bound to the same deterministic candidate
-  digest. Any candidate change invalidates stale approval.
-- Draft PR publication revalidates the immutable lock, reconstructs the reviewed patch
-  in a disposable controller checkout, pushes only a `project-hermes/*` branch, and
-  never mutates the Worker workspace.
-- Live PR status can fall back to anonymous, read-only GitHub access if authenticated
-  status lookup fails. This fallback cannot publish.
-- Credentials are delivered from a private, size-bounded, credential-only file through
-  a sanitized environment. Process-control variables are rejected.
+```powershell
+iex (irm https://hermes-agent.nousresearch.com/install.ps1)
+```
 
-Current deployments should remain behind the authenticated, single-operator Dashboard
-boundary. Project Hermes validates `X-Project-Hermes-Role`, but the current adapter does
-not cryptographically bind that client-declared role to a multi-user identity. The
-default Dashboard bind is loopback; use a secure tunnel or `kubectl port-forward` and
-do not expose write APIs directly until server-side role mapping is implemented.
+The installer handles everything: uv, Python 3.11, Node.js, ripgrep, ffmpeg, **and a portable Git Bash** (MinGit, unpacked to `%LOCALAPPDATA%\hermes\git` — no admin required, completely isolated from any system Git install). Hermes uses this bundled Git Bash to run shell commands.
 
-Read [Security](docs/project-hermes/security.md) for the full threat model and residual
-risks.
+If you already have Git installed, the installer detects it and uses that instead. Otherwise a ~45MB MinGit download is all you need — it won't touch or interfere with any system Git.
 
-## Testing
+> **Android / Termux:** The tested manual path is documented in the [Termux guide](https://hermes-agent.nousresearch.com/docs/getting-started/termux). On Termux, Hermes installs a curated `.[termux]` extra because the full `.[all]` extra currently pulls Android-incompatible voice dependencies.
+>
+> **Windows:** Native Windows is fully supported — the PowerShell one-liner above installs everything. If you'd rather use WSL2, the Linux command works there too. Native Windows install lives under `%LOCALAPPDATA%\hermes`; WSL2 installs under `~/.hermes` as on Linux.
 
-Run the focused backend and frontend checks from the repository root:
+After installation:
 
 ```bash
-scripts/run_tests.sh tests/project_hermes/ -q
-uv run ruff check project_hermes tests/project_hermes
-uv run project-hermes check-english README.md project_hermes
-
-npm run typecheck --workspace web
-npm run test --workspace web
-npm run lint --workspace web
-npm run build --workspace web
+source ~/.bashrc    # reload shell (or: source ~/.zshrc)
+hermes              # start chatting!
 ```
 
-The focused backend suite uses fake runtime drivers and local repositories. It does not
-send model requests, publish branches, or require API keys.
+### Troubleshooting
 
-## Immutable releases and deployment
+#### Windows Defender or antivirus flags `uv.exe` as malware
 
-Production is installed from a checksum-verified release bundle rather than a mutable
-checkout. A bundle contains the source, prebuilt Dashboard, offline Python wheelhouse,
-Worker runtime, canonical manifest, and artifact checksums. Kubernetes manifests are
-rendered from the verified bundle and pin the runtime image by digest. The active
-release can be rolled back atomically without rebuilding dependencies in the cluster.
+If your antivirus (Bitdefender, Windows Defender, etc.) quarantines `uv.exe` from the Hermes `bin` folder (`%LOCALAPPDATA%\hermes\bin\uv.exe`), this is a **false positive**. The file is Astral's `uv` — the Rust Python package manager Hermes bundles to manage its Python environment. ML-based antivirus engines commonly flag unsigned Rust binaries that download and install packages.
 
-See [Immutable release operations](docs/project-hermes/release.md) for packaging,
-validation, rendering, deployment, and rollback procedures. Do not apply the template
-manifests in `deploy/kubernetes/` directly; they intentionally contain release tokens
-that the renderer must replace.
+**To verify your copy is authentic:**
+
+```powershell
+# Install GitHub CLI if needed
+winget install --id GitHub.cli
+
+# Login to GitHub
+gh auth login
+
+# Run verification
+$uv = "$env:LOCALAPPDATA\hermes\bin\uv.exe"
+$ver = (& $uv --version).Split(' ')[1]
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+$zip = "$env:TEMP\uv.zip"
+Invoke-WebRequest "https://github.com/astral-sh/uv/releases/download/$ver/uv-x86_64-pc-windows-msvc.zip" -OutFile $zip -UseBasicParsing
+gh attestation verify $zip --repo astral-sh/uv
+Expand-Archive $zip "$env:TEMP\uv_x" -Force
+(Get-FileHash "$env:TEMP\uv_x\uv.exe").Hash -eq (Get-FileHash $uv).Hash
+```
+
+If attestation says "Verification succeeded" and the last line prints `True`, you're good.
+
+**To whitelist Hermes:**
+- **Windows Defender:** Run PowerShell as Admin → `Add-MpPreference -ExclusionPath "$env:LOCALAPPDATA\hermes\bin"`
+- **Bitdefender:** Add an exception in the Bitdefender console (Protection > Antivirus > Settings > Manage Exceptions)
+- Whitelist the **folder**, not the file hash — Hermes updates `uv` and the hash changes every version
+
+For more context, see the upstream Astral reports: [astral-sh/uv#13553](https://github.com/astral-sh/uv/issues/13553), [astral-sh/uv#15011](https://github.com/astral-sh/uv/issues/15011), [astral-sh/uv#10079](https://github.com/astral-sh/uv/issues/10079).
+
+---
+
+## Getting Started
+
+```bash
+hermes              # Interactive CLI — start a conversation
+hermes model        # Choose your LLM provider and model
+hermes tools        # Configure which tools are enabled
+hermes config set   # Set individual config values
+hermes config get   # Print individual config values
+hermes gateway      # Start the messaging gateway (Telegram, Discord, etc.)
+hermes setup        # Run the full setup wizard (configures everything at once)
+hermes claw migrate # Migrate from OpenClaw (if coming from OpenClaw)
+hermes update       # Update to the latest version
+hermes doctor       # Diagnose any issues
+```
+
+📖 **[Full documentation →](https://hermes-agent.nousresearch.com/docs/)**
+
+---
+
+## Skip the API-key collection — Nous Portal
+
+Hermes works with whatever provider you want — that's not changing. But if you'd rather not collect five separate API keys for the model, web search, image generation, TTS, and a cloud browser, **[Nous Portal](https://portal.nousresearch.com)** covers all of them under one subscription:
+
+- **300+ models** — pick any of them with `/model <name>`
+- **Tool Gateway** — web search (Firecrawl), image generation (FAL), text-to-speech (OpenAI), cloud browser (Browser Use), all routed through your sub. No extra accounts.
+
+One command from a fresh install:
+
+```bash
+hermes setup --portal
+```
+
+That logs you in via OAuth, sets Nous as your provider, and turns on the Tool Gateway. Check what's wired up any time with `hermes portal info`. Full details on the [Tool Gateway docs page](https://hermes-agent.nousresearch.com/docs/user-guide/features/tool-gateway).
+
+You can still bring your own keys per-tool whenever you want — the gateway is per-backend, not all-or-nothing.
+
+---
+
+## CLI vs Messaging Quick Reference
+
+Hermes has two entry points: start the terminal UI with `hermes`, or run the gateway and talk to it from Telegram, Discord, Slack, WhatsApp, Signal, or Email. Once you're in a conversation, many slash commands are shared across both interfaces.
+
+| Action                         | CLI                                           | Messaging platforms                                                              |
+| ------------------------------ | --------------------------------------------- | -------------------------------------------------------------------------------- |
+| Start chatting                 | `hermes`                                      | Run `hermes gateway setup` + `hermes gateway start`, then send the bot a message |
+| Start fresh conversation       | `/new` or `/reset`                            | `/new` or `/reset`                                                               |
+| Change model                   | `/model [provider:model]`                     | `/model [provider:model]`                                                        |
+| Set a personality              | `/personality [name]`                         | `/personality [name]`                                                            |
+| Retry or undo the last turn    | `/retry`, `/undo`                             | `/retry`, `/undo`                                                                |
+| Compress context / check usage | `/compress`, `/usage`, `/insights [--days N]` | `/compress`, `/usage`, `/insights [days]`                                        |
+| Browse skills                  | `/skills` or `/<skill-name>`                  | `/<skill-name>`                                                                  |
+| Interrupt current work         | `Ctrl+C` or send a new message                | `/stop` or send a new message                                                    |
+| Platform-specific status       | `/platforms`                                  | `/status`, `/sethome`                                                            |
+
+For the full command lists, see the [CLI guide](https://hermes-agent.nousresearch.com/docs/user-guide/cli) and the [Messaging Gateway guide](https://hermes-agent.nousresearch.com/docs/user-guide/messaging).
+
+---
 
 ## Documentation
 
-- [Project Hermes overview and invariants](PROJECT_HERMES.md)
-- [Architecture](docs/project-hermes/architecture.md)
-- [Contracts and schemas](docs/project-hermes/contracts.md)
-- [Operations](docs/project-hermes/operations.md)
-- [Security](docs/project-hermes/security.md)
-- [Immutable releases](docs/project-hermes/release.md)
-- [Migration](docs/project-hermes/migration.md)
-- [Architecture decisions](docs/project-hermes/adr/)
-- [Upstream Hermes Agent documentation](https://hermes-agent.nousresearch.com/docs/)
+All documentation lives at **[hermes-agent.nousresearch.com/docs](https://hermes-agent.nousresearch.com/docs/)**:
 
-## Upstream attribution
+| Section                                                                                             | What's Covered                                             |
+| --------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| [Quickstart](https://hermes-agent.nousresearch.com/docs/getting-started/quickstart)                 | Install → setup → first conversation in 2 minutes          |
+| [CLI Usage](https://hermes-agent.nousresearch.com/docs/user-guide/cli)                              | Commands, keybindings, personalities, sessions             |
+| [Configuration](https://hermes-agent.nousresearch.com/docs/user-guide/configuration)                | Config file, providers, models, all options                |
+| [Messaging Gateway](https://hermes-agent.nousresearch.com/docs/user-guide/messaging)                | Telegram, Discord, Slack, WhatsApp, Signal, Home Assistant |
+| [Security](https://hermes-agent.nousresearch.com/docs/user-guide/security)                          | Command approval, DM pairing, container isolation          |
+| [Tools & Toolsets](https://hermes-agent.nousresearch.com/docs/user-guide/features/tools)            | 40+ tools, toolset system, terminal backends               |
+| [Skills System](https://hermes-agent.nousresearch.com/docs/user-guide/features/skills)              | Procedural memory, Skills Hub, creating skills             |
+| [Memory](https://hermes-agent.nousresearch.com/docs/user-guide/features/memory)                     | Persistent memory, user profiles, best practices           |
+| [MCP Integration](https://hermes-agent.nousresearch.com/docs/user-guide/features/mcp)               | Connect any MCP server for extended capabilities           |
+| [Cron Scheduling](https://hermes-agent.nousresearch.com/docs/user-guide/features/cron)              | Scheduled tasks with platform delivery                     |
+| [Context Files](https://hermes-agent.nousresearch.com/docs/user-guide/features/context-files)       | Project context that shapes every conversation             |
+| [Architecture](https://hermes-agent.nousresearch.com/docs/developer-guide/architecture)             | Project structure, agent loop, key classes                 |
+| [Contributing](https://hermes-agent.nousresearch.com/docs/developer-guide/contributing)             | Development setup, PR process, code style                  |
+| [CLI Reference](https://hermes-agent.nousresearch.com/docs/reference/cli-commands)                  | All commands and flags                                     |
+| [Environment Variables](https://hermes-agent.nousresearch.com/docs/reference/environment-variables) | Complete env var reference                                 |
 
-GitHub Hermes is an additive downstream project built on
-[Hermes Agent](https://github.com/NousResearch/hermes-agent) by
-[Nous Research](https://nousresearch.com). Upstream Hermes supplies the agent runtime
-and its general-purpose interfaces; GitHub Hermes encapsulates that runtime inside a
-durable GitHub engineering control plane. Existing upstream notices and attribution
-are preserved.
+---
+
+## Migrating from OpenClaw
+
+If you're coming from OpenClaw, Hermes can automatically import your settings, memories, skills, and API keys.
+
+**During first-time setup:** The setup wizard (`hermes setup`) automatically detects `~/.openclaw` and offers to migrate before configuration begins.
+
+**Anytime after install:**
+
+```bash
+hermes claw migrate              # Interactive migration (full preset)
+hermes claw migrate --dry-run    # Preview what would be migrated
+hermes claw migrate --preset user-data   # Migrate without secrets
+hermes claw migrate --overwrite  # Overwrite existing conflicts
+```
+
+What gets imported:
+
+- **SOUL.md** — persona file
+- **Memories** — MEMORY.md and USER.md entries
+- **Skills** — user-created skills → `~/.hermes/skills/openclaw-imports/`
+- **Command allowlist** — approval patterns
+- **Messaging settings** — platform configs, allowed users, working directory
+- **API keys** — allowlisted secrets (Telegram, OpenRouter, OpenAI, Anthropic, ElevenLabs)
+- **TTS assets** — workspace audio files
+- **Workspace instructions** — AGENTS.md (with `--workspace-target`)
+
+See `hermes claw migrate --help` for all options, or use the `openclaw-migration` skill for an interactive agent-guided migration with dry-run previews.
+
+---
+
+## Contributing
+
+We welcome contributions! See the [Contributing Guide](https://hermes-agent.nousresearch.com/docs/developer-guide/contributing) for development setup, code style, and PR process.
+
+Quick start for contributors — use the standard installer, then work from the
+full git checkout it creates at `$HERMES_HOME/hermes-agent` (usually
+`~/.hermes/hermes-agent`). This matches the layout used by `hermes update`, the
+managed venv, lazy dependencies, gateway, and docs tooling.
+
+```bash
+curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash
+cd "${HERMES_HOME:-$HOME/.hermes}/hermes-agent"
+uv pip install -e ".[all,dev]"
+scripts/run_tests.sh
+```
+
+Manual clone fallback (for throwaway clones/CI where you intentionally do not
+want the managed install layout):
+
+Create the venv outside the cloned source tree — a venv inside the directory
+the agent operates from can be wiped by a relative-path command the agent runs
+against its own checkout, destroying the running runtime mid-session.
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+uv venv ~/.hermes/venvs/hermes-dev --python 3.11
+source ~/.hermes/venvs/hermes-dev/bin/activate
+uv pip install -e ".[all,dev]"
+scripts/run_tests.sh
+```
+
+---
+
+## Community
+
+- 💬 [Discord](https://discord.gg/NousResearch)
+- 📚 [Skills Hub](https://agentskills.io)
+- 🐛 [Issues](https://github.com/NousResearch/hermes-agent/issues)
+- 🔌 [computer-use-linux](https://github.com/avifenesh/computer-use-linux) — Linux desktop-control MCP server for Hermes and other MCP hosts, with AT-SPI accessibility trees, Wayland/X11 input, screenshots, and compositor window targeting.
+- 🔌 [HermesClaw](https://github.com/AaronWong1999/hermesclaw) — Community WeChat bridge: Run Hermes Agent and OpenClaw on the same WeChat account.
+
+---
 
 ## License
 
-This repository is distributed under the MIT License. See [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE).
+
+Built by [Nous Research](https://nousresearch.com).

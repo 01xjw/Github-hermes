@@ -72,6 +72,13 @@ jobs:
           fetch-tags: true
           sparse-checkout: scripts/sandbox/pick-release-tags.sh
           sparse-checkout-cone-mode: false
+      # Forks may not mirror the canonical release tags. The E2E itself installs
+      # those upstream releases, so make the tag-selection input match it.
+      - name: Fetch upstream release tags
+        run: >-
+          git fetch --force --depth=1 --filter=blob:none --no-recurse-submodules
+          https://github.com/NousResearch/hermes-agent.git
+          'refs/tags/v*:refs/tags/v*'
       - id: pick
         run: |
           set -euo pipefail

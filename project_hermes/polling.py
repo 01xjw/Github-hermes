@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from threading import Lock
-from typing import Any, Iterable
+from typing import Any, Iterable, Literal
 from urllib.parse import urlparse
 from uuid import uuid4
 
@@ -28,6 +29,16 @@ from project_hermes.polling_store import (
     candidate_id,
 )
 from project_hermes.redaction import redact_text
+
+
+@dataclass(frozen=True, slots=True)
+class _RepositoryDiscoveryBatch:
+    candidates: tuple[PollingCandidate, ...]
+    window_start: datetime
+    window_end: datetime
+    scan_mode: Literal["rolling", "fresh", "backfill"]
+    truncated: bool = False
+    next_backfill_cursor: datetime | None = None
 
 
 class IssuePollingService:
@@ -56,13 +67,9 @@ class IssuePollingService:
         if not self.config.require_operator_selection:
             self.store.enqueue_waiting_candidates(
                 max_pending_work_items=self.config.max_pending_work_items,
+                require_screening_select=self.config.issue_screening_enabled,
                 now=timestamp,
             )
-            if (
-                self.store.pending_work_count()
-                >= self.config.max_pending_work_items
-            ):
-                return None
         if not self.store.is_due(now=timestamp):
             return None
         return self.run_now(now=timestamp)
@@ -110,8 +117,15 @@ class IssuePollingService:
 
         if not self._run_lock.acquire(blocking=False):
             raise RuntimeError("a polling run is already active")
+        timestamp = _utc(now or utc_now())
         try:
-            return self._run(now=_utc(now or utc_now()))
+            return self._run(now=timestamp)
+        except Exception:
+            # Never leave a durable run wedged in RUNNING after an unexpected
+            # request or parsing failure. This is the same fail-closed recovery
+            # performed when the process restarts after an interruption.
+            self.store.recover_interrupted_run(now=timestamp)
+            raise
         finally:
             self._run_lock.release()
 
@@ -160,6 +174,10 @@ class IssuePollingService:
             repository_issues = 0
             repository_matched = 0
             repository_queued = 0
+            scan_window_start = run.cutoff
+            scan_window_end = now
+            scan_mode: Literal["rolling", "fresh", "backfill"] = "rolling"
+            next_backfill_cursor: datetime | None = None
             try:
                 repository = self._repository_metadata(
                     repository_config,
@@ -175,33 +193,25 @@ class IssuePollingService:
                     self.config.max_candidates_per_repository,
                     remaining,
                 )
-                # ``recent_open_issues`` resets this flag when iteration
-                # starts. A zero remaining budget never starts the generator,
-                # so clear the previous repository's state explicitly.
-                self.client.truncated = False
-                for issue in _take(
-                    self.client.recent_open_issues(
-                        repository.repository,
-                        run.cutoff,
-                        max_pages=(
-                            self.config.max_issue_pages_per_repository
-                        ),
-                    ),
-                    repository_limit,
-                ):
+                batch = self._repository_batch(
+                    run_id=run.run_id,
+                    repository=repository,
+                    repository_config=repository_config,
+                    now=now,
+                    limit=repository_limit,
+                )
+                scan_window_start = batch.window_start
+                scan_window_end = batch.window_end
+                scan_mode = batch.scan_mode
+                next_backfill_cursor = batch.next_backfill_cursor
+                for candidate in batch.candidates:
                     repository_issues += 1
                     issues_seen += 1
-                    candidate = self._candidate(
-                        run_id=run.run_id,
-                        repository=repository,
-                        repository_config=repository_config,
-                        issue=issue,
-                        discovered_at=now,
-                    )
                     _stored, was_queued = self.store.save_candidate(
                         candidate,
                         enqueue_eligible=(
                             not self.config.require_operator_selection
+                            and not self.config.issue_screening_enabled
                         ),
                         max_pending_work_items=(
                             self.config.max_pending_work_items
@@ -213,12 +223,12 @@ class IssuePollingService:
                     if was_queued:
                         repository_queued += 1
                         queued += 1
-                if getattr(self.client, "truncated", False):
+                if batch.truncated:
                     partial += 1
                     scanned += 1
                     detail = (
-                        "bounded scan reached the configured open-Issue page "
-                        "limit; continuing repository rotation"
+                        f"bounded {scan_mode} scan reached the configured "
+                        "open-Issue limit; continuing repository rotation"
                     )
                     errors.append(f"{repository_config.repository}: {detail}")
                     self.store.finish_repository_scan(
@@ -227,6 +237,9 @@ class IssuePollingService:
                             repository_id=repository_id_value,
                             repository=repository_config.repository,
                             status=RepositoryScanStatus.PARTIAL,
+                            window_start=scan_window_start,
+                            window_end=scan_window_end,
+                            scan_mode=scan_mode,
                             issues_seen=repository_issues,
                             candidates_matched=repository_matched,
                             work_items_queued=repository_queued,
@@ -246,6 +259,9 @@ class IssuePollingService:
                         repository_id=repository_id_value,
                         repository=repository_config.repository,
                         status=RepositoryScanStatus.FAILED,
+                        window_start=scan_window_start,
+                        window_end=scan_window_end,
+                        scan_mode=scan_mode,
                         issues_seen=repository_issues,
                         candidates_matched=repository_matched,
                         work_items_queued=repository_queued,
@@ -262,12 +278,16 @@ class IssuePollingService:
                     repository_id=repository_id_value,
                     repository=repository_config.repository,
                     status=RepositoryScanStatus.COMPLETED,
+                    window_start=scan_window_start,
+                    window_end=scan_window_end,
+                    scan_mode=scan_mode,
                     issues_seen=repository_issues,
                     candidates_matched=repository_matched,
                     work_items_queued=repository_queued,
                     started_at=started_at,
                     completed_at=utc_now(),
-                )
+                ),
+                next_backfill_cursor=next_backfill_cursor,
             )
 
         if failed == len(repositories) and repositories:
@@ -292,6 +312,125 @@ class IssuePollingService:
         return self.store.finish_run(
             PollingRun.model_validate(completed),
             next_run_at=self._next_repository_due_at(completed_at),
+        )
+
+    def _repository_batch(
+        self,
+        *,
+        run_id: str,
+        repository: PollingRepository,
+        repository_config: PollingRepositoryConfig,
+        now: datetime,
+        limit: int,
+    ) -> _RepositoryDiscoveryBatch:
+        """Choose a fresh or one-day historical window for one repository."""
+
+        github_repository = repository_config.resolved_github_repository
+        cursor = self.store.repository_backfill_cursor(repository.repository)
+        if cursor is None:
+            window_start = now - timedelta(days=self.config.rolling_window_days)
+            candidates, truncated = self._collect_candidates(
+                self.client.recent_open_issues(
+                    github_repository,
+                    window_start,
+                    max_pages=self.config.max_issue_pages_per_repository,
+                ),
+                run_id=run_id,
+                repository=repository,
+                repository_config=repository_config,
+                discovered_at=now,
+                limit=limit,
+            )
+            return _RepositoryDiscoveryBatch(
+                candidates=candidates,
+                window_start=window_start,
+                window_end=now,
+                scan_mode="rolling",
+                truncated=truncated,
+                # Revisit the partial UTC day at the old boundary before
+                # moving to days that precede the initial rolling window.
+                next_backfill_cursor=_utc_day_start(window_start),
+            )
+
+        today = _utc_day_start(now)
+        fresh_candidates, fresh_truncated = self._collect_candidates(
+            self.client.recent_open_issues(
+                github_repository,
+                today,
+                max_pages=self.config.max_issue_pages_per_repository,
+            ),
+            run_id=run_id,
+            repository=repository,
+            repository_config=repository_config,
+            discovered_at=now,
+            limit=limit,
+        )
+        if fresh_truncated or any(
+            self.store.candidate_snapshot_changed(candidate)
+            for candidate in fresh_candidates
+        ):
+            return _RepositoryDiscoveryBatch(
+                candidates=fresh_candidates,
+                window_start=today,
+                window_end=now,
+                scan_mode="fresh",
+                truncated=fresh_truncated,
+            )
+
+        window_start = min(cursor, today - timedelta(days=1))
+        window_end = window_start + timedelta(days=1)
+        candidates, truncated = self._collect_candidates(
+            self.client.open_issues_created_between(
+                github_repository,
+                window_start,
+                window_end,
+                max_pages=self.config.max_issue_pages_per_repository,
+            ),
+            run_id=run_id,
+            repository=repository,
+            repository_config=repository_config,
+            discovered_at=now,
+            limit=limit,
+        )
+        return _RepositoryDiscoveryBatch(
+            candidates=candidates,
+            window_start=window_start,
+            window_end=window_end,
+            scan_mode="backfill",
+            truncated=truncated,
+            next_backfill_cursor=window_start - timedelta(days=1),
+        )
+
+    def _collect_candidates(
+        self,
+        issues: Iterable[dict[str, Any]],
+        *,
+        run_id: str,
+        repository: PollingRepository,
+        repository_config: PollingRepositoryConfig,
+        discovered_at: datetime,
+        limit: int,
+    ) -> tuple[tuple[PollingCandidate, ...], bool]:
+        """Materialize a bounded API iterator and detect local truncation."""
+
+        self.client.truncated = False
+        candidates: list[PollingCandidate] = []
+        overflow = False
+        for issue in issues:
+            if len(candidates) >= limit:
+                overflow = True
+                break
+            candidates.append(
+                self._candidate(
+                    run_id=run_id,
+                    repository=repository,
+                    repository_config=repository_config,
+                    issue=issue,
+                    discovered_at=discovered_at,
+                )
+            )
+        return tuple(candidates), bool(
+            overflow or getattr(self.client, "truncated", False)
         )
 
     def select_candidate(
@@ -337,12 +476,13 @@ class IssuePollingService:
         *,
         now: datetime,
     ) -> PollingRepository:
-        payload, _headers = self.client.get(f"/repos/{config.repository}")
+        github_repository = config.resolved_github_repository
+        payload, _headers = self.client.get(f"/repos/{github_repository}")
         if not isinstance(payload, dict):
             raise GitHubError("GitHub repository response is not an object")
         repository_id_value = int(payload["id"])
         canonical_name = str(payload["full_name"])
-        if canonical_name.casefold() != config.repository.casefold():
+        if canonical_name.casefold() != github_repository.casefold():
             raise GitHubError(
                 "GitHub repository identity differs from configured owner/name"
             )
@@ -362,7 +502,7 @@ class IssuePollingService:
             raise GitHubError("GitHub repository has no default branch")
         return PollingRepository(
             repository_id=repository_id_value,
-            repository=canonical_name,
+            repository=config.repository,
             enabled=config.enabled,
             default_branch=default_branch,
             html_url=html_url,
@@ -383,12 +523,18 @@ class IssuePollingService:
             raise ValueError("polling accepts only open GitHub Issues")
         number = int(issue["number"])
         issue_url = str(issue["html_url"])
-        expected_path = f"/{repository.repository}/issues/{number}".casefold()
+        accepted_paths = {
+            f"/{repository.repository}/issues/{number}".casefold(),
+            (
+                f"/{repository_config.resolved_github_repository}/issues/"
+                f"{number}"
+            ).casefold(),
+        }
         parsed = urlparse(issue_url)
         if (
             parsed.scheme != "https"
             or parsed.hostname != "github.com"
-            or parsed.path.rstrip("/").casefold() != expected_path
+            or parsed.path.rstrip("/").casefold() not in accepted_paths
             or parsed.query
             or parsed.fragment
         ):
@@ -475,19 +621,14 @@ class IssuePollingService:
         )
 
 
-def _take(items: Iterable[dict[str, Any]], limit: int) -> Iterable[dict[str, Any]]:
-    if limit <= 0:
-        return
-    for index, item in enumerate(items):
-        if index >= limit:
-            return
-        yield item
-
-
 def _utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         raise ValueError("polling timestamps must be timezone-aware")
     return value.astimezone(UTC)
+
+
+def _utc_day_start(value: datetime) -> datetime:
+    return _utc(value).replace(hour=0, minute=0, second=0, microsecond=0)
 
 
 __all__ = ["IssuePollingService"]

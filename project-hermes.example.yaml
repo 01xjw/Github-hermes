@@ -68,10 +68,12 @@ polling:
   manager_idle_interval_seconds: 300
   manager_error_retry_seconds: 300
   manager_protocol_retry_seconds: 30
+  supervisor_stall_timeout_seconds: 5400
   worker_capacity_retry_base_seconds: 300
   worker_capacity_retry_max_seconds: 3600
   repositories:
     - repository: ROCm/ROCm
+      github_repository: ROCm/legacy-rocm-build
       relevance_policy: amd_native
       skill_name: solve-rocm-rocm
     - repository: ROCm/composable_kernel

@@ -83,6 +83,11 @@ class IssueLauncher:
             task,
             repository=repository,
             clone_source=resolved.clone_source,
+            legacy_clone_sources=(
+                (f"https://github.com/{repository}.git",)
+                if resolved.github_repository is not None
+                else ()
+            ),
             baseline_sha=baseline_sha,
         )
         self.workspaces.assert_clean(lease)
@@ -148,6 +153,7 @@ class IssueLauncher:
         *,
         repository: str,
         clone_source: str,
+        legacy_clone_sources: tuple[str, ...],
         baseline_sha: str,
     ) -> WorkspaceLease:
         owner = _identifier("issue-workspace", task.task_id)
@@ -171,6 +177,7 @@ class IssueLauncher:
             source=clone_source,
             base_ref=baseline_sha,
             owner_session_id=owner,
+            allowed_existing_sources=legacy_clone_sources,
         )
 
     def _execution_request(

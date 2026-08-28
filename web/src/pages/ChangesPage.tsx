@@ -518,16 +518,24 @@ function CandidateList({
     );
   }
 
-  return (
-    <section className="overflow-hidden rounded-lg border border-[#e2e8f0] bg-white shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
-      <header className="border-b border-[#e2e8f0] bg-[#f8fafc] px-4 py-3">
-        <p className="text-xs font-semibold text-[#1e293b]">
-          Internal pull request candidates
-        </p>
-      </header>
-      <ul>
-        {candidates.map((candidate) => (
-          <li className="border-b border-[#e2e8f0] last:border-b-0" key={candidate.candidate_id}>
+  const candidatesWithPullRequests = candidates.filter(
+    (candidate) => pullRequests[candidate.candidate_id] !== undefined,
+  );
+  const candidatesWithoutPullRequests = candidates.filter(
+    (candidate) => pullRequests[candidate.candidate_id] === undefined,
+  );
+
+  const renderCandidates = (
+    items: InternalPullRequestCandidateSummary[],
+    emptyMessage: string,
+  ) => (
+    <ul>
+      {items.length ? (
+        items.map((candidate) => (
+          <li
+            className="border-b border-[#e2e8f0] last:border-b-0"
+            key={candidate.candidate_id}
+          >
             <button
               type="button"
               onClick={() => onSelect(candidate.candidate_id)}
@@ -571,9 +579,53 @@ function CandidateList({
               </span>
             </button>
           </li>
-        ))}
-      </ul>
-    </section>
+        ))
+      ) : (
+        <li className="px-4 py-10 text-center text-sm text-[#64748b]">
+          {emptyMessage}
+        </li>
+      )}
+    </ul>
+  );
+
+  return (
+    <div className="space-y-4" data-internal-pr-groups="true">
+      <section
+        data-pr-group="existing"
+        className="overflow-hidden rounded-lg border border-[#e2e8f0] bg-white shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
+      >
+        <header className="border-b border-[#e2e8f0] bg-[#f0fdf4] px-4 py-3">
+          <p className="text-xs font-semibold text-[#166534]">
+            Existing PRs · {candidatesWithPullRequests.length}
+          </p>
+          <p className="mt-1 text-[11px] text-[#64748b]">
+            Published solutions with a live GitHub pull request
+          </p>
+        </header>
+        {renderCandidates(
+          candidatesWithPullRequests,
+          "No published pull requests have been found yet.",
+        )}
+      </section>
+
+      <section
+        data-pr-group="missing"
+        className="overflow-hidden rounded-lg border border-[#e2e8f0] bg-white shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
+      >
+        <header className="border-b border-[#e2e8f0] bg-[#fff7ed] px-4 py-3">
+          <p className="text-xs font-semibold text-[#9a3412]">
+            No PR · {candidatesWithoutPullRequests.length}
+          </p>
+          <p className="mt-1 text-[11px] text-[#64748b]">
+            Unpublished or unresolved Issue solutions
+          </p>
+        </header>
+        {renderCandidates(
+          candidatesWithoutPullRequests,
+          "Every visible candidate already has a GitHub pull request.",
+        )}
+      </section>
+    </div>
   );
 }
 

@@ -115,6 +115,9 @@ class PollingRunRepository(StrictModel):
     repository_id: int | None = Field(default=None, ge=1)
     repository: str
     status: RepositoryScanStatus
+    window_start: datetime | None = None
+    window_end: datetime | None = None
+    scan_mode: Literal["rolling", "fresh", "backfill"] | None = None
     issues_seen: int = Field(default=0, ge=0)
     candidates_matched: int = Field(default=0, ge=0)
     work_items_queued: int = Field(default=0, ge=0)
@@ -413,6 +416,9 @@ CREATE TABLE IF NOT EXISTS polling_run_repositories (
     repository_id        INTEGER,
     repository           TEXT NOT NULL COLLATE NOCASE,
     status               TEXT NOT NULL,
+    window_start         TEXT,
+    window_end           TEXT,
+    scan_mode            TEXT,
     issues_seen          INTEGER NOT NULL DEFAULT 0,
     candidates_matched   INTEGER NOT NULL DEFAULT 0,
     work_items_queued    INTEGER NOT NULL DEFAULT 0,
@@ -424,6 +430,12 @@ CREATE TABLE IF NOT EXISTS polling_run_repositories (
 
 CREATE INDEX IF NOT EXISTS idx_polling_run_repositories_repository
 ON polling_run_repositories(repository_id, repository, started_at DESC);
+
+CREATE TABLE IF NOT EXISTS polling_repository_backfill (
+    repository          TEXT PRIMARY KEY COLLATE NOCASE,
+    next_window_start   TEXT NOT NULL,
+    updated_at          TEXT NOT NULL
+);
 
 CREATE TABLE IF NOT EXISTS polling_candidates (
     candidate_id          TEXT PRIMARY KEY,
@@ -450,6 +462,19 @@ CREATE TABLE IF NOT EXISTS polling_candidates (
 
 CREATE INDEX IF NOT EXISTS idx_polling_candidates_query
 ON polling_candidates(repository_id, eligible, last_seen_at DESC);
+
+CREATE TABLE IF NOT EXISTS polling_run_candidates (
+    run_id             TEXT NOT NULL,
+    candidate_id       TEXT NOT NULL,
+    repository_id      INTEGER NOT NULL,
+    snapshot_digest    TEXT NOT NULL,
+    eligible           INTEGER NOT NULL,
+    observed_at        TEXT NOT NULL,
+    PRIMARY KEY (run_id, candidate_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_polling_run_candidates_repository
+ON polling_run_candidates(repository_id, run_id, candidate_id);
 
 CREATE TABLE IF NOT EXISTS issue_screenings (
     candidate_id               TEXT NOT NULL,
@@ -623,6 +648,8 @@ class SqlitePollingStore:
             connection.executescript(_SCHEMA)
             self._migrate_work_retry_columns(connection)
             self._migrate_candidate_snapshot_column(connection)
+            self._migrate_repository_scan_window_columns(connection)
+            self._backfill_polling_run_candidates(connection)
             self._migrate_screening_current_projection(connection)
 
     @staticmethod
@@ -676,6 +703,53 @@ class SqlitePollingStore:
                     "WHERE candidate_id = ?",
                     (digest, candidate.candidate_id),
                 )
+
+    @staticmethod
+    def _migrate_repository_scan_window_columns(
+        connection: sqlite3.Connection,
+    ) -> None:
+        """Add per-repository scan windows without rewriting old history."""
+
+        columns = {
+            str(row["name"])
+            for row in connection.execute(
+                "PRAGMA table_info(polling_run_repositories)"
+            )
+        }
+        for name in ("window_start", "window_end", "scan_mode"):
+            if name not in columns:
+                connection.execute(
+                    f"ALTER TABLE polling_run_repositories ADD COLUMN {name} TEXT"
+                )
+
+    @staticmethod
+    def _backfill_polling_run_candidates(
+        connection: sqlite3.Connection,
+    ) -> None:
+        """Seed batch membership for the most recent snapshot of older rows.
+
+        Before this projection existed, ``polling_candidates.latest_run_id``
+        retained only the newest observation.  That is still enough to seed
+        the current per-repository coverage window without inventing history
+        for older runs.
+        """
+
+        connection.execute(
+            """
+            INSERT OR IGNORE INTO polling_run_candidates (
+                run_id, candidate_id, repository_id, snapshot_digest,
+                eligible, observed_at
+            )
+            SELECT latest_run_id, candidate_id, repository_id,
+                   snapshot_digest, eligible, last_seen_at
+            FROM polling_candidates
+            WHERE snapshot_digest != ''
+              AND EXISTS (
+                  SELECT 1 FROM polling_runs AS run
+                  WHERE run.run_id = polling_candidates.latest_run_id
+              )
+            """
+        )
 
     @staticmethod
     def _migrate_screening_current_projection(
@@ -902,10 +976,10 @@ class SqlitePollingStore:
             connection.execute(
                 """
                 INSERT INTO polling_run_repositories (
-                    run_id, repository_id, repository, status, issues_seen,
-                    candidates_matched, work_items_queued, started_at,
-                    completed_at, error
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    run_id, repository_id, repository, status, window_start,
+                    window_end, scan_mode, issues_seen, candidates_matched,
+                    work_items_queued, started_at, completed_at, error
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 _run_repository_values(item),
             )
@@ -950,6 +1024,8 @@ class SqlitePollingStore:
     def finish_repository_scan(
         self,
         item: PollingRunRepository,
+        *,
+        next_backfill_cursor: datetime | None = None,
     ) -> PollingRunRepository:
         if item.status is RepositoryScanStatus.RUNNING:
             raise ValueError("repository scan must have a terminal status")
@@ -957,11 +1033,26 @@ class SqlitePollingStore:
             raise ValueError("finished repository scan requires completed_at")
         safe_error = redact_text(item.error) if item.error else None
         item = item.model_copy(update={"error": safe_error})
+        cursor_value = (
+            _utc(next_backfill_cursor)
+            if next_backfill_cursor is not None
+            else None
+        )
+        if cursor_value is not None and any(
+            (
+                cursor_value.hour,
+                cursor_value.minute,
+                cursor_value.second,
+                cursor_value.microsecond,
+            )
+        ):
+            raise ValueError("repository backfill cursor must be a UTC day boundary")
         with self._transaction() as connection:
             cursor = connection.execute(
                 """
                 UPDATE polling_run_repositories
-                SET repository_id = ?, status = ?, issues_seen = ?,
+                SET repository_id = ?, status = ?, window_start = ?,
+                    window_end = ?, scan_mode = ?, issues_seen = ?,
                     candidates_matched = ?, work_items_queued = ?,
                     completed_at = ?, error = ?
                 WHERE run_id = ? AND repository = ? COLLATE NOCASE
@@ -970,6 +1061,9 @@ class SqlitePollingStore:
                 (
                     item.repository_id,
                     item.status.value,
+                    _iso(item.window_start) if item.window_start else None,
+                    _iso(item.window_end) if item.window_end else None,
+                    item.scan_mode,
                     item.issues_seen,
                     item.candidates_matched,
                     item.work_items_queued,
@@ -998,7 +1092,35 @@ class SqlitePollingStore:
                         item.repository_id,
                     ),
                 )
+            if cursor_value is not None:
+                connection.execute(
+                    """
+                    INSERT INTO polling_repository_backfill (
+                        repository, next_window_start, updated_at
+                    ) VALUES (?, ?, ?)
+                    ON CONFLICT(repository) DO UPDATE SET
+                        next_window_start = excluded.next_window_start,
+                        updated_at = excluded.updated_at
+                    """,
+                    (
+                        item.repository,
+                        _iso(cursor_value),
+                        _iso(item.completed_at),
+                    ),
+                )
         return item
+
+    def candidate_snapshot_changed(self, candidate: PollingCandidate) -> bool:
+        """Return whether an Issue is new or its screening input changed."""
+
+        expected = candidate_snapshot_digest(candidate)
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT snapshot_digest FROM polling_candidates "
+                "WHERE candidate_id = ?",
+                (candidate.candidate_id,),
+            ).fetchone()
+        return row is None or str(row["snapshot_digest"] or "") != expected
 
     def save_candidate(
         self,
@@ -1064,6 +1186,27 @@ class SqlitePollingStore:
                     latest_run_id = excluded.latest_run_id
                 """,
                 _candidate_values(candidate),
+            )
+            connection.execute(
+                """
+                INSERT INTO polling_run_candidates (
+                    run_id, candidate_id, repository_id, snapshot_digest,
+                    eligible, observed_at
+                ) VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(run_id, candidate_id) DO UPDATE SET
+                    repository_id = excluded.repository_id,
+                    snapshot_digest = excluded.snapshot_digest,
+                    eligible = excluded.eligible,
+                    observed_at = excluded.observed_at
+                """,
+                (
+                    candidate.latest_run_id,
+                    candidate.candidate_id,
+                    candidate.repository_id,
+                    candidate_snapshot_digest(candidate),
+                    int(candidate.eligible),
+                    _iso(candidate.last_seen_at),
+                ),
             )
             queued = bool(
                 enqueue_eligible
@@ -1581,6 +1724,7 @@ class SqlitePollingStore:
         self,
         *,
         max_pending_work_items: int,
+        require_screening_select: bool = False,
         now: datetime | None = None,
     ) -> list[str]:
         """Fill free queue slots from eligible candidates not yet in Work."""
@@ -1593,21 +1737,50 @@ class SqlitePollingStore:
             available = max_pending_work_items - _pending_work_count_tx(connection)
             if available <= 0:
                 return []
-            rows = connection.execute(
-                """
-                SELECT candidates.*
-                FROM polling_candidates AS candidates
-                LEFT JOIN work_items AS work
-                  ON work.candidate_id = candidates.candidate_id
-                WHERE candidates.eligible = 1
-                  AND work.candidate_id IS NULL
-                ORDER BY candidates.first_seen_at, candidates.candidate_id
-                LIMIT ?
-                """,
-                (available,),
-            ).fetchall()
+            if require_screening_select:
+                rows = connection.execute(
+                    """
+                    SELECT candidates.*
+                    FROM polling_candidates AS candidates
+                    JOIN issue_screening_current AS screening
+                      ON screening.candidate_id = candidates.candidate_id
+                     AND screening.candidate_snapshot_digest =
+                         candidates.snapshot_digest
+                    LEFT JOIN work_items AS work
+                      ON work.candidate_id = candidates.candidate_id
+                    WHERE candidates.eligible = 1
+                      AND work.candidate_id IS NULL
+                      AND screening.decision = ?
+                    ORDER BY candidates.first_seen_at,
+                             candidates.candidate_id
+                    """,
+                    (ScreeningDecision.SELECT.value,),
+                ).fetchall()
+            else:
+                rows = connection.execute(
+                    """
+                    SELECT candidates.*
+                    FROM polling_candidates AS candidates
+                    LEFT JOIN work_items AS work
+                      ON work.candidate_id = candidates.candidate_id
+                    WHERE candidates.eligible = 1
+                      AND work.candidate_id IS NULL
+                    ORDER BY candidates.first_seen_at,
+                             candidates.candidate_id
+                    LIMIT ?
+                    """,
+                    (available,),
+                ).fetchall()
             for row in rows:
                 candidate = _candidate_from_row(row)
+                if require_screening_select and not _screening_allows_admission(
+                    _current_screening_tx(
+                        connection,
+                        candidate.candidate_id,
+                        str(row["snapshot_digest"]),
+                    )
+                ):
+                    continue
                 work_id = self._enqueue_candidate_tx(
                     connection,
                     candidate,
@@ -1616,6 +1789,8 @@ class SqlitePollingStore:
                 )
                 if work_id is not None:
                     queued.append(work_id)
+                if len(queued) >= available:
+                    break
         return queued
 
     def _enqueue_candidate_tx(
@@ -1846,6 +2021,43 @@ class SqlitePollingStore:
             for row in rows
             if row["last_started_at"]
         }
+
+    def repository_backfill_cursor(self, repository: str) -> datetime | None:
+        """Return the next UTC day boundary to scan for one repository."""
+
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT next_window_start FROM polling_repository_backfill "
+                "WHERE repository = ? COLLATE NOCASE",
+                (repository,),
+            ).fetchone()
+        return _parse(str(row["next_window_start"])) if row is not None else None
+
+    def set_repository_backfill_cursor(
+        self,
+        repository: str,
+        next_window_start: datetime,
+        *,
+        now: datetime | None = None,
+    ) -> None:
+        """Persist the next historical UTC day without sharing repo state."""
+
+        cursor = _utc(next_window_start)
+        if any((cursor.hour, cursor.minute, cursor.second, cursor.microsecond)):
+            raise ValueError("repository backfill cursor must be a UTC day boundary")
+        timestamp = _utc(now or utc_now())
+        with self._transaction() as connection:
+            connection.execute(
+                """
+                INSERT INTO polling_repository_backfill (
+                    repository, next_window_start, updated_at
+                ) VALUES (?, ?, ?)
+                ON CONFLICT(repository) DO UPDATE SET
+                    next_window_start = excluded.next_window_start,
+                    updated_at = excluded.updated_at
+                """,
+                (repository, _iso(cursor), _iso(timestamp)),
+            )
 
     def list_candidates(
         self,
@@ -3107,6 +3319,103 @@ class SqlitePollingStore:
                 [_iso(today), _iso(week), *time_values],
             ).fetchone()
 
+            latest_scan_rows = connection.execute(
+                """
+                SELECT repository.repository_id,
+                       scan.run_id,
+                       COALESCE(scan.window_start, run.cutoff) AS cutoff,
+                       COALESCE(
+                           scan.window_end,
+                           scan.completed_at,
+                           scan.started_at
+                       ) AS window_end,
+                       COALESCE(scan.scan_mode, 'rolling') AS scan_mode,
+                       scan.status,
+                       scan.issues_seen,
+                       scan.candidates_matched,
+                       scan.work_items_queued,
+                       scan.started_at,
+                       scan.completed_at,
+                       scan.error
+                FROM polling_repositories AS repository
+                JOIN polling_run_repositories AS scan
+                  ON scan.repository_id = repository.repository_id
+                  OR (
+                      scan.repository_id IS NULL
+                      AND scan.repository = repository.repository COLLATE NOCASE
+                  )
+                JOIN polling_runs AS run ON run.run_id = scan.run_id
+                WHERE scan.rowid = (
+                      SELECT latest.rowid
+                      FROM polling_run_repositories AS latest
+                      WHERE latest.repository_id = repository.repository_id
+                         OR (
+                             latest.repository_id IS NULL
+                             AND latest.repository = repository.repository
+                                 COLLATE NOCASE
+                         )
+                      ORDER BY latest.started_at DESC, latest.run_id DESC
+                      LIMIT 1
+                  )
+                """
+            ).fetchall()
+            latest_scans = {
+                int(row["repository_id"]): row for row in latest_scan_rows
+            }
+            coverage_scan_rows = connection.execute(
+                """
+                SELECT repository.repository_id,
+                       scan.run_id,
+                       COALESCE(scan.window_start, run.cutoff) AS cutoff,
+                       COALESCE(
+                           scan.window_end,
+                           scan.completed_at,
+                           scan.started_at
+                       ) AS window_end,
+                       COALESCE(scan.scan_mode, 'rolling') AS scan_mode,
+                       scan.status,
+                       scan.issues_seen,
+                       scan.candidates_matched,
+                       scan.work_items_queued,
+                       scan.started_at,
+                       scan.completed_at,
+                       scan.error
+                FROM polling_repositories AS repository
+                JOIN polling_run_repositories AS scan
+                  ON scan.repository_id = repository.repository_id
+                  OR (
+                      scan.repository_id IS NULL
+                      AND scan.repository = repository.repository COLLATE NOCASE
+                  )
+                JOIN polling_runs AS run ON run.run_id = scan.run_id
+                WHERE scan.status IN (?, ?)
+                  AND scan.rowid = (
+                      SELECT coverage.rowid
+                      FROM polling_run_repositories AS coverage
+                      WHERE (
+                          coverage.repository_id = repository.repository_id
+                          OR (
+                              coverage.repository_id IS NULL
+                              AND coverage.repository = repository.repository
+                                  COLLATE NOCASE
+                          )
+                      )
+                      AND coverage.status IN (?, ?)
+                      ORDER BY coverage.started_at DESC, coverage.run_id DESC
+                      LIMIT 1
+                  )
+                """,
+                (
+                    RepositoryScanStatus.COMPLETED.value,
+                    RepositoryScanStatus.PARTIAL.value,
+                    RepositoryScanStatus.COMPLETED.value,
+                    RepositoryScanStatus.PARTIAL.value,
+                ),
+            ).fetchall()
+            coverage_scans = {
+                int(row["repository_id"]): row for row in coverage_scan_rows
+            }
+
             repository_stats: list[dict[str, Any]] = []
             for repository in all_repositories:
                 counts = connection.execute(
@@ -3129,6 +3438,75 @@ class SqlitePollingStore:
                         RepositoryScanStatus.RUNNING.value,
                     ),
                 ).fetchone()
+                latest_scan = latest_scans.get(repository.repository_id)
+                coverage_scan = coverage_scans.get(repository.repository_id)
+                coverage_results = {
+                    "seen": 0,
+                    "retained": 0,
+                    "matched": 0,
+                    "filtered": 0,
+                    "selected": 0,
+                    "work": 0,
+                    "done": 0,
+                }
+                results_updated_at: str | None = None
+                if coverage_scan is not None:
+                    batch = connection.execute(
+                        """
+                        SELECT COUNT(batch.candidate_id) AS retained,
+                               SUM(CASE WHEN batch.eligible = 1 THEN 1 ELSE 0 END)
+                                   AS matched,
+                               SUM(CASE WHEN batch.eligible = 0 THEN 1 ELSE 0 END)
+                                   AS filtered,
+                               SUM(CASE WHEN screening.decision = ? THEN 1 ELSE 0 END)
+                                   AS selected,
+                               SUM(CASE WHEN work.work_item_id IS NOT NULL THEN 1 ELSE 0 END)
+                                   AS work_items,
+                               SUM(CASE WHEN work.status = ? THEN 1 ELSE 0 END)
+                                   AS done,
+                               MAX(batch.observed_at) AS observed_at,
+                               MAX(screening.screened_at) AS screened_at,
+                               MAX(work.updated_at) AS work_updated_at
+                        FROM polling_run_candidates AS batch
+                        LEFT JOIN issue_screening_current AS screening
+                          ON screening.candidate_id = batch.candidate_id
+                         AND screening.candidate_snapshot_digest =
+                             batch.snapshot_digest
+                        LEFT JOIN work_items AS work
+                          ON work.candidate_id = batch.candidate_id
+                        WHERE batch.run_id = ? AND batch.repository_id = ?
+                        """,
+                        (
+                            ScreeningDecision.SELECT.value,
+                            WorkStatus.DONE.value,
+                            coverage_scan["run_id"],
+                            repository.repository_id,
+                        ),
+                    ).fetchone()
+                    coverage_results = {
+                        "seen": int(coverage_scan["issues_seen"]),
+                        "retained": int(batch["retained"] or 0),
+                        "matched": int(batch["matched"] or 0),
+                        "filtered": int(batch["filtered"] or 0),
+                        "selected": int(batch["selected"] or 0),
+                        "work": int(batch["work_items"] or 0),
+                        "done": int(batch["done"] or 0),
+                    }
+                    update_values = [
+                        value
+                        for value in (
+                            coverage_scan["completed_at"],
+                            coverage_scan["started_at"],
+                            batch["observed_at"],
+                            batch["screened_at"],
+                            batch["work_updated_at"],
+                        )
+                        if value
+                    ]
+                    if update_values:
+                        results_updated_at = max(
+                            _parse(str(value)) for value in update_values
+                        ).isoformat()
                 repository_stats.append({
                     "repository_id": repository.repository_id,
                     "repository": repository.repository,
@@ -3151,6 +3529,25 @@ class SqlitePollingStore:
                     "work_items": self.count_work_items(
                         repository_id=repository.repository_id
                     ),
+                    "latest_scan": (
+                        _repository_scan_payload(latest_scan)
+                        if latest_scan is not None
+                        else None
+                    ),
+                    "coverage_scan": (
+                        _repository_scan_payload(coverage_scan)
+                        if coverage_scan is not None
+                        else None
+                    ),
+                    "coverage_stale": bool(
+                        latest_scan is not None
+                        and (
+                            coverage_scan is None
+                            or latest_scan["run_id"] != coverage_scan["run_id"]
+                        )
+                    ),
+                    "coverage_results": coverage_results,
+                    "results_updated_at": results_updated_at,
                 })
 
         return {
@@ -3429,6 +3826,9 @@ def _run_repository_from_row(row: sqlite3.Row) -> PollingRunRepository:
         ),
         repository=row["repository"],
         status=RepositoryScanStatus(row["status"]),
+        window_start=_parse_optional(row["window_start"]),
+        window_end=_parse_optional(row["window_end"]),
+        scan_mode=row["scan_mode"],
         issues_seen=int(row["issues_seen"]),
         candidates_matched=int(row["candidates_matched"]),
         work_items_queued=int(row["work_items_queued"]),
@@ -3436,6 +3836,22 @@ def _run_repository_from_row(row: sqlite3.Row) -> PollingRunRepository:
         completed_at=_parse_optional(row["completed_at"]),
         error=row["error"],
     )
+
+
+def _repository_scan_payload(row: sqlite3.Row) -> dict[str, Any]:
+    return {
+        "run_id": row["run_id"],
+        "cutoff": row["cutoff"],
+        "window_end": row["window_end"],
+        "scan_mode": row["scan_mode"],
+        "status": row["status"],
+        "issues_seen": int(row["issues_seen"]),
+        "candidates_matched": int(row["candidates_matched"]),
+        "work_items_queued": int(row["work_items_queued"]),
+        "started_at": row["started_at"],
+        "completed_at": row["completed_at"],
+        "error": row["error"],
+    }
 
 
 def _candidate_from_row(row: sqlite3.Row) -> PollingCandidate:
@@ -3590,6 +4006,9 @@ def _run_repository_values(item: PollingRunRepository) -> tuple[Any, ...]:
         item.repository_id,
         item.repository,
         item.status.value,
+        _iso(item.window_start) if item.window_start else None,
+        _iso(item.window_end) if item.window_end else None,
+        item.scan_mode,
         item.issues_seen,
         item.candidates_matched,
         item.work_items_queued,

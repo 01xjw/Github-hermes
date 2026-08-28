@@ -131,9 +131,14 @@ spec:
           command:
             - /bin/bash
             - -lc
-            - "</dev/tcp/127.0.0.1/8770"
-        periodSeconds: 15
-        failureThreshold: 4
+            - >-
+              curl --fail --silent --show-error --max-time 10
+              -H "X-Hermes-Session-Token: ${HERMES_DASHBOARD_SESSION_TOKEN}"
+              http://127.0.0.1:8770/api/v2/project-hermes/health
+              >/dev/null
+        timeoutSeconds: 15
+        periodSeconds: 60
+        failureThreshold: 3
       volumeMounts:
         - name: workspace
           mountPath: /app/project-hermes/release

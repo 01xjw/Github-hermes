@@ -883,6 +883,13 @@
           "title": "Sqlite Path",
           "type": "string"
         },
+        "supervisor_stall_timeout_seconds": {
+          "default": 5400,
+          "maximum": 86400,
+          "minimum": 300,
+          "title": "Supervisor Stall Timeout Seconds",
+          "type": "integer"
+        },
         "worker_capacity_retry_base_seconds": {
           "default": 300,
           "maximum": 86400,

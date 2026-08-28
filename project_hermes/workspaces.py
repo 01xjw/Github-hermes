@@ -10,6 +10,7 @@ import subprocess
 import time
 from pathlib import Path
 from threading import RLock
+from typing import Sequence
 from urllib.parse import urlsplit
 from uuid import uuid4
 
@@ -60,6 +61,7 @@ class GitWorkspaceManager:
         source: str | Path,
         base_ref: str,
         owner_session_id: str,
+        allowed_existing_sources: Sequence[str | Path] = (),
     ) -> WorkspaceLease:
         """Update a controller mirror and create an isolated worktree."""
 
@@ -92,7 +94,12 @@ class GitWorkspaceManager:
                 )
 
             mirror = self._mirror_path(repository)
-            base_sha = self._ensure_mirror(mirror, source, base_ref)
+            base_sha = self._ensure_mirror(
+                mirror,
+                source,
+                base_ref,
+                allowed_existing_sources=allowed_existing_sources,
+            )
 
             worktree = self._worktree_path(task_id, repository)
             if worktree.exists():
@@ -290,6 +297,8 @@ class GitWorkspaceManager:
         mirror: Path,
         source: str | Path,
         base_ref: str,
+        *,
+        allowed_existing_sources: Sequence[str | Path] = (),
     ) -> str:
         """Materialize only the locked baseline needed by one worker.
 
@@ -335,9 +344,19 @@ class GitWorkspaceManager:
                 )
             else:
                 if origin != str(source):
-                    raise ValueError(
-                        "controller mirror origin differs from the "
-                        "configured repository source"
+                    allowed = {str(value) for value in allowed_existing_sources}
+                    if origin not in allowed:
+                        raise ValueError(
+                            "controller mirror origin differs from the "
+                            "configured repository source"
+                        )
+                    self._git(
+                        "--git-dir",
+                        str(mirror),
+                        "remote",
+                        "set-url",
+                        "origin",
+                        str(source),
                     )
         else:
             assert_private_directory(mirror.parent)

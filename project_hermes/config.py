@@ -47,6 +47,11 @@ DEFAULT_POLLING_REPOSITORIES: tuple[str, ...] = (
     "PaddlePaddle/Paddle",
     "SemiAnalysisAI/InferenceX",
 )
+DEFAULT_POLLING_REPOSITORY_ALIASES: dict[str, str] = {
+    # GitHub renamed this repository while ProjectHermes already had durable
+    # Work and a repository Skill under the original identity.
+    "ROCm/ROCm": "ROCm/legacy-rocm-build",
+}
 _CREDENTIAL_ENV_RE = re.compile(
     r"^[A-Z][A-Z0-9_]*(?:"
     r"_API_KEY|_ACCESS_KEY|_ACCESS_KEY_ID|_SECRET_ACCESS_KEY|"
@@ -274,6 +279,12 @@ class PollingRepositoryConfig(StrictModel):
     """One configurable GitHub repository watched by the polling task."""
 
     repository: str
+    # Keep ``repository`` as the durable ProjectHermes identity when GitHub
+    # renames a repository.  Network reads, clones, and publication use this
+    # explicitly reviewed canonical owner/name instead, so existing Work,
+    # repository Skills, and controller mirrors do not need an unsafe state
+    # rewrite.
+    github_repository: str | None = None
     enabled: bool = True
     include_labels: tuple[str, ...] = ()
     exclude_labels: tuple[str, ...] = ()
@@ -281,9 +292,11 @@ class PollingRepositoryConfig(StrictModel):
     relevance_policy: IssueRelevancePolicy = IssueRelevancePolicy.AMD_OR_PORTABLE
     skill_name: str | None = None
 
-    @field_validator("repository")
+    @field_validator("repository", "github_repository")
     @classmethod
-    def validate_repository(cls, value: str) -> str:
+    def validate_repository(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
         parts = value.split("/")
         if (
             len(parts) != 2
@@ -292,6 +305,12 @@ class PollingRepositoryConfig(StrictModel):
         ):
             raise ValueError("polling repositories must use owner/name form")
         return value
+
+    @property
+    def resolved_github_repository(self) -> str:
+        """Return the canonical GitHub name used for external operations."""
+
+        return self.github_repository or self.repository
 
     @field_validator("include_labels", "exclude_labels")
     @classmethod
@@ -331,7 +350,10 @@ class PollingRepositoryConfig(StrictModel):
 
 def _default_polling_repositories() -> tuple[PollingRepositoryConfig, ...]:
     return tuple(
-        PollingRepositoryConfig(repository=repository)
+        PollingRepositoryConfig(
+            repository=repository,
+            github_repository=DEFAULT_POLLING_REPOSITORY_ALIASES.get(repository),
+        )
         for repository in DEFAULT_POLLING_REPOSITORIES
     )
 
@@ -418,6 +440,14 @@ class PollingConfig(StrictModel):
     manager_idle_interval_seconds: int = Field(default=300, ge=30, le=3600)
     manager_error_retry_seconds: int = Field(default=60, ge=30, le=300)
     manager_protocol_retry_seconds: int = Field(default=30, ge=5, le=300)
+    # Kubernetes may restart the Dashboard if any long-lived supervisor loop
+    # stops heartbeating beyond this bound. Keep it comfortably above two
+    # sequential model turns so normal provider latency is not a deadlock.
+    supervisor_stall_timeout_seconds: int = Field(
+        default=5400,
+        ge=300,
+        le=86_400,
+    )
     worker_capacity_retry_base_seconds: int = Field(
         default=300,
         ge=30,
@@ -440,6 +470,11 @@ class PollingConfig(StrictModel):
         names = [value.repository.casefold() for value in values]
         if len(names) != len(set(names)):
             raise ValueError("polling repositories must be unique")
+        github_names = [
+            value.resolved_github_repository.casefold() for value in values
+        ]
+        if len(github_names) != len(set(github_names)):
+            raise ValueError("polling GitHub repositories must be unique")
         return values
 
     @field_validator("exclude_labels")
