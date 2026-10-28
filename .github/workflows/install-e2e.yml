@@ -58,6 +58,11 @@ jobs:
   # by both route matrices, so the two routes cover the same set.
   pick-releases:
     name: Pick release tags
+    # Upstream-only: this E2E exercises the public `curl | install.sh`
+    # one-liner and NousResearch's own release tags/tests-install assets.
+    # Forks don't carry tests/install/, so skip here the same way
+    # skills-index.yml / deploy-site.yml do for their upstream-only jobs.
+    if: github.repository == 'NousResearch/hermes-agent'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -88,7 +93,7 @@ jobs:
 
   # `hermes update` -- the route most users take.
   update:
-    if: github.event_name != 'workflow_dispatch' || inputs.route != 'installer'
+    if: github.repository == 'NousResearch/hermes-agent' && (github.event_name != 'workflow_dispatch' || inputs.route != 'installer')
     needs: pick-releases
     strategy:
       # One release breaking is worth knowing about even if another already
@@ -104,7 +109,7 @@ jobs:
   # Re-running the curl one-liner over an existing checkout: autostash + pull
   # rather than the updater's own git handling.
   installer:
-    if: github.event_name != 'workflow_dispatch' || inputs.route != 'update'
+    if: github.repository == 'NousResearch/hermes-agent' && (github.event_name != 'workflow_dispatch' || inputs.route != 'update')
     needs: pick-releases
     strategy:
       fail-fast: false
