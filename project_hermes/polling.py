@@ -70,6 +70,11 @@ class IssuePollingService:
                 require_screening_select=self.config.issue_screening_enabled,
                 now=timestamp,
             )
+            if (
+                self.store.pending_work_count()
+                >= self.config.max_pending_work_items
+            ):
+                return None
         if not self.store.is_due(now=timestamp):
             return None
         return self.run_now(now=timestamp)
