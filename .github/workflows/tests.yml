@@ -185,6 +185,9 @@ jobs:
           key: test-durations-${{ github.run_id }}
 
   e2e:
+    # tests/e2e/ is upstream-only; forks that don't carry it would fail
+    # pytest with "file or directory not found".
+    if: github.repository == 'NousResearch/hermes-agent'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:

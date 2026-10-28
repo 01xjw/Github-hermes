@@ -38,6 +38,9 @@ concurrency:
 jobs:
   os-tests:
     name: ${{ matrix.name }}
+    # The OS-marked tests live in upstream's tests/ tree; forks without it
+    # have nothing to select, and the zero-selection guard below would fail.
+    if: github.repository == 'NousResearch/hermes-agent'
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     strategy:

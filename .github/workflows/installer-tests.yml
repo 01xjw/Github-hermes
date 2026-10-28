@@ -19,6 +19,9 @@ concurrency:
 jobs:
   powershell:
     name: PowerShell installer tests
+    # scripts/tests/ is upstream-only; forks that don't carry it have no
+    # installer test scripts to run.
+    if: github.repository == 'NousResearch/hermes-agent'
     runs-on: windows-latest
     timeout-minutes: 15
     steps:
