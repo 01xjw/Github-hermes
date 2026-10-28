@@ -3,8 +3,76 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { CompletedSolutionsCards, CompletedSolutionsTable } from "./CompletedSolutions";
-import { COMPLETED_SOLUTIONS } from "@/lib/completed-solutions";
+import type {
+  ProjectWorkItem,
+  ProjectWorkListResponse,
+  ProjectWorkStatus,
+} from "@/lib/api";
+import { CompletedSolutionsTable } from "./CompletedSolutions";
+
+const apiMocks = vi.hoisted(() => ({
+  listProjectWorkItems: vi.fn(),
+}));
+
+vi.mock("@/lib/api", () => ({ api: apiMocks }));
+
+const timestamp = "2026-08-20T02:00:00Z";
+
+function workItem(index: number): ProjectWorkItem {
+  return {
+    work_item_id: `work-${index}`,
+    candidate_id: `candidate-${index}`,
+    repository_id: 101,
+    repository: "acme/alpha",
+    issue_number: index,
+    issue_url: `https://github.com/acme/alpha/issues/${index}`,
+    title: `Fix runtime regression ${index}`,
+    status: "done",
+    current_step: "Both review stages approved the solution.",
+    plan: null,
+    environment_status: "verified",
+    environment_verified_at: timestamp,
+    named_baseline: null,
+    resource_requirements: null,
+    task_id: null,
+    run_id: null,
+    execution_id: null,
+    internal_candidate_id: `internal-${index}`,
+    blocked_reason: null,
+    last_error: null,
+    execution_attempt: 1,
+    retry_not_before: null,
+    queued_at: timestamp,
+    planning_started_at: timestamp,
+    started_at: timestamp,
+    review_started_at: timestamp,
+    completed_at: timestamp,
+    updated_at: timestamp,
+  };
+}
+
+function listResponse(
+  items: ProjectWorkItem[],
+  done: number,
+  offset = 0,
+): ProjectWorkListResponse {
+  const counts: Record<ProjectWorkStatus, number> = {
+    queued: 0,
+    planning: 0,
+    running: 0,
+    review: 0,
+    done,
+    blocked: 0,
+    failed: 0,
+  };
+  return { work_items: items, counts, total: done, limit: 25, offset };
+}
+
+async function settle() {
+  await act(async () => {
+    for (let tick = 0; tick < 5; tick += 1) await Promise.resolve();
+  });
+}
 
 let container: HTMLDivElement;
 let root: Root;
@@ -13,112 +81,109 @@ beforeEach(() => {
   container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async () => {
-      return new Response(
-        JSON.stringify({
-          statuses: COMPLETED_SOLUTIONS.map((solution) => ({
-            key: solution.id,
-            state:
-              solution.pullRequestNumber === 568 ||
-              solution.pullRequestNumber === 569
-                ? "merged"
-                : "open",
-            number: solution.pullRequestNumber,
-            url: solution.pullRequestUrl,
-            checked_at: "2026-08-21T00:00:00Z",
-          })),
-        }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      );
-    }),
-  );
 });
 
 afterEach(async () => {
   await act(async () => root.unmount());
   container.remove();
-  vi.unstubAllGlobals();
+  vi.clearAllMocks();
 });
 
-describe("CompletedSolutions", () => {
-  it.each([
-    ["table", <CompletedSolutionsTable />],
-    ["cards", <CompletedSolutionsCards />],
-  ])("renders every completed solution in the %s view", async (_name, view) => {
-    await act(async () => root.render(view));
-    await act(async () => {
-      await Promise.resolve();
-      await Promise.resolve();
-    });
+describe("CompletedSolutionsTable", () => {
+  it("renders every completed Work item returned by the backend", async () => {
+    const items = [workItem(1), workItem(2)];
+    apiMocks.listProjectWorkItems.mockResolvedValue(listResponse(items, 2));
 
-    expect(container.querySelectorAll("[data-completed-solution]")).toHaveLength(
-      COMPLETED_SOLUTIONS.length,
-    );
-    expect(container.querySelectorAll('[data-solution-status="done"]')).toHaveLength(
-      COMPLETED_SOLUTIONS.length,
-    );
-    for (const solution of COMPLETED_SOLUTIONS) {
-      const link = container.querySelector<HTMLAnchorElement>(
-        `a[href="${solution.pullRequestUrl}"]`,
+    await act(async () => root.render(<CompletedSolutionsTable />));
+    await settle();
+
+    expect(apiMocks.listProjectWorkItems).toHaveBeenCalledWith({
+      status: ["done"],
+      limit: 25,
+      offset: 0,
+    });
+    expect(container.textContent).toContain("Completed solutions · 2");
+    expect(container.querySelectorAll("[data-completed-solution]")).toHaveLength(2);
+    for (const item of items) {
+      const row = container.querySelector(
+        `[data-completed-solution="${item.work_item_id}"]`,
       );
-      expect(link?.textContent).toContain(`#${solution.pullRequestNumber}`);
+      const link = row?.querySelector<HTMLAnchorElement>(
+        `a[href="${item.issue_url}"]`,
+      );
+      expect(link?.textContent).toContain(`Issue #${item.issue_number}`);
+      expect(row?.textContent).toContain(item.title);
+      expect(row?.textContent).toContain(item.internal_candidate_id);
     }
-    expect(container.querySelectorAll('[data-upstream-state="merged"]')).toHaveLength(2);
-    expect(container.querySelectorAll('[aria-label="Live GitHub status"]')).toHaveLength(
-      COMPLETED_SOLUTIONS.length,
+  });
+
+  it("shows the empty state when no Work has completed", async () => {
+    apiMocks.listProjectWorkItems.mockResolvedValue(listResponse([], 0));
+
+    await act(async () => root.render(<CompletedSolutionsTable />));
+    await settle();
+
+    expect(container.querySelectorAll("[data-completed-solution]")).toHaveLength(0);
+    expect(container.textContent).toContain("No completed Work has been recorded yet.");
+  });
+
+  it("requests the next page of completed Work", async () => {
+    apiMocks.listProjectWorkItems.mockImplementation(
+      async ({ offset }: { offset: number }) =>
+        listResponse([workItem(offset + 1)], 30, offset),
     );
-    expect(fetch).toHaveBeenCalledWith(
-      "/api/v2/project-hermes/github/pull-request-statuses",
-      expect.objectContaining({ method: "POST" }),
+
+    await act(async () => root.render(<CompletedSolutionsTable />));
+    await settle();
+    expect(container.textContent).toContain("1–25 of 30 · page 1 / 2");
+
+    const next = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="Next completed solutions page"]',
+    );
+    await act(async () => {
+      next?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    await settle();
+
+    expect(apiMocks.listProjectWorkItems).toHaveBeenLastCalledWith({
+      status: ["done"],
+      limit: 25,
+      offset: 25,
+    });
+    expect(container.textContent).toContain("26–30 of 30 · page 2 / 2");
+    expect(
+      container.querySelector('[data-completed-solution="work-26"]'),
+    ).not.toBeNull();
+  });
+
+  it("surfaces a backend failure", async () => {
+    apiMocks.listProjectWorkItems.mockRejectedValue(
+      new Error("work-items endpoint unavailable"),
+    );
+
+    await act(async () => root.render(<CompletedSolutionsTable />));
+    await settle();
+
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      "work-items endpoint unavailable",
     );
   });
 
-  it("keeps the last known state when one backend lookup is unknown", async () => {
-    let request = 0;
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => {
-        request += 1;
-        return new Response(
-          JSON.stringify({
-            statuses: COMPLETED_SOLUTIONS.map((solution) => ({
-              key: solution.id,
-              state:
-                request > 1 && solution.id === "spur-568" ? "unknown" : "open",
-              number: solution.pullRequestNumber,
-              url: solution.pullRequestUrl,
-              checked_at: "2026-08-21T00:00:00Z",
-            })),
-          }),
-          { status: 200, headers: { "Content-Type": "application/json" } },
-        );
-      }),
-    );
+  it("selects a completed Work item when its row is clicked", async () => {
+    const item = workItem(7);
+    const onSelect = vi.fn();
+    apiMocks.listProjectWorkItems.mockResolvedValue(listResponse([item], 1));
 
-    await act(async () => root.render(<CompletedSolutionsCards />));
-    await act(async () => {
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-    const solution = container.querySelector(
-      '[data-completed-solution="spur-568"]',
-    );
-    expect(solution?.querySelector('[data-upstream-state="open"]')).not.toBeNull();
+    await act(async () => root.render(<CompletedSolutionsTable onSelect={onSelect} />));
+    await settle();
 
-    const refresh = container.querySelector<HTMLButtonElement>(
-      'button[aria-label="Refresh GitHub pull request states"]',
+    const row = container.querySelector<HTMLTableRowElement>(
+      '[data-completed-solution="work-7"]',
     );
     await act(async () => {
-      refresh?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-      await Promise.resolve();
-      await Promise.resolve();
+      row?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
-    expect(solution?.querySelector('[data-upstream-state="open"]')).not.toBeNull();
-    expect(
-      solution?.querySelector('[aria-label="Status not yet refreshed"]'),
-    ).not.toBeNull();
+    expect(onSelect).toHaveBeenCalledWith(item);
   });
 });
